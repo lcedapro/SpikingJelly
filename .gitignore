@@ -1,0 +1,10 @@
+# ignore all
+*
+
+# include folder '06-conv_fashion_mnist' and all its subfolders
+!06-conv_fashion_mnist
+!06-conv_fashion_mnist/**
+!06-conv_fashion_mnist/.*
+
+# include gitignore
+!.gitignore
