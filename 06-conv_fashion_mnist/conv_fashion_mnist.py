@@ -117,13 +117,13 @@ def main():
             root=args.data_dir,
             train=True,
             transform=torchvision.transforms.ToTensor(),
-            download=True)
+            download=False)
 
     test_set = torchvision.datasets.FashionMNIST(
             root=args.data_dir,
             train=False,
             transform=torchvision.transforms.ToTensor(),
-            download=True)
+            download=False)
 
     train_data_loader = torch.utils.data.DataLoader(
         dataset=train_set,

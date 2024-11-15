@@ -1,0 +1,14 @@
+Layer,Size,Dtype,Requires Grad
+conv_fc.0.weight,"torch.Size([32, 1, 5, 5])",torch.int8,False
+conv_fc.0.bias,torch.Size([32]),torch.int8,False
+conv_fc.2.weight,"torch.Size([32, 32, 4, 4])",torch.int8,False
+conv_fc.2.bias,torch.Size([32]),torch.int8,False
+conv_fc.4.weight,"torch.Size([48, 32, 3, 3])",torch.int8,False
+conv_fc.4.bias,torch.Size([48]),torch.int8,False
+conv_fc.6.weight,"torch.Size([32, 48, 3, 3])",torch.int8,False
+conv_fc.6.bias,torch.Size([32]),torch.int8,False
+conv_fc.8.weight,"torch.Size([32, 32, 3, 3])",torch.int8,False
+conv_fc.8.bias,torch.Size([32]),torch.int8,False
+conv_fc.11.weight,"torch.Size([512, 1152])",torch.int8,False
+conv_fc.13.weight,"torch.Size([128, 512])",torch.int8,False
+conv_fc.15.weight,"torch.Size([10, 128])",torch.int8,False
