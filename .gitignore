@@ -6,5 +6,15 @@
 !06-conv_fashion_mnist/**
 !06-conv_fashion_mnist/.*
 
+# include folder '15-classify_dvsg' and all its subfolders
+!15-classify_dvsg
+!15-classify_dvsg/**
+!15-classify_dvsg/.*
+
+# exclude dataset folder '15-classify_dvsg/DVS128Gesture' ( too large )
+15-classify_dvsg/DVS128Gesture
+15-classify_dvsg/DVS128Gesture/**
+15-classify_dvsg/DVS128Gesture/.*
+
 # include gitignore
 !.gitignore
