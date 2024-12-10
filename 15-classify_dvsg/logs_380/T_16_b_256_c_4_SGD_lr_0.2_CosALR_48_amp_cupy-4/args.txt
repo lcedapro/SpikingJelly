@@ -1,0 +1,1 @@
+Namespace(T=16, T_max=48, amp=True, b=256, channels=4, cupy=True, data_dir='./DVS128Gesture', device='cuda:0', epochs=48, gamma=0.1, j=12, lr=0.2, lr_scheduler='CosALR', momentum=0.9, opt='SGD', out_dir='./logs', resume='./logs/T_16_b_256_c_4_SGD_lr_0.2_CosALR_48_amp_cupy-3/checkpoint_max.pth', step_size=32)

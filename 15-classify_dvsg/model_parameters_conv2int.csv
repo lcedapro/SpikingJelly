@@ -1,23 +1,16 @@
 Layer,Size,Dtype,Requires Grad
-conv.0.weight,"torch.Size([32, 2, 3, 3])",torch.int8,False
-conv.0.bias,torch.Size([32]),torch.int8,False
-conv.2.weight,"torch.Size([32, 32, 2, 2])",torch.int8,False
-conv.2.bias,torch.Size([32]),torch.int8,False
-conv.4.weight,"torch.Size([32, 32, 3, 3])",torch.int8,False
-conv.4.bias,torch.Size([32]),torch.int8,False
-conv.6.weight,"torch.Size([32, 32, 2, 2])",torch.int8,False
-conv.6.bias,torch.Size([32]),torch.int8,False
-conv.8.weight,"torch.Size([32, 32, 3, 3])",torch.int8,False
+conv.0.weight,"torch.Size([8, 2, 5, 5])",torch.int8,False
+conv.0.bias,torch.Size([8]),torch.int8,False
+conv.2.weight,"torch.Size([8, 8, 5, 5])",torch.int8,False
+conv.2.bias,torch.Size([8]),torch.int8,False
+conv.4.weight,"torch.Size([16, 8, 5, 5])",torch.int8,False
+conv.4.bias,torch.Size([16]),torch.int8,False
+conv.6.weight,"torch.Size([16, 16, 5, 5])",torch.int8,False
+conv.6.bias,torch.Size([16]),torch.int8,False
+conv.8.weight,"torch.Size([32, 16, 5, 5])",torch.int8,False
 conv.8.bias,torch.Size([32]),torch.int8,False
-conv.10.weight,"torch.Size([32, 32, 2, 2])",torch.int8,False
+conv.10.weight,"torch.Size([32, 32, 5, 5])",torch.int8,False
 conv.10.bias,torch.Size([32]),torch.int8,False
-conv.12.weight,"torch.Size([32, 32, 3, 3])",torch.int8,False
-conv.12.bias,torch.Size([32]),torch.int8,False
-conv.14.weight,"torch.Size([32, 32, 2, 2])",torch.int8,False
-conv.14.bias,torch.Size([32]),torch.int8,False
-conv.16.weight,"torch.Size([32, 32, 3, 3])",torch.int8,False
-conv.16.bias,torch.Size([32]),torch.int8,False
-conv.18.weight,"torch.Size([32, 32, 2, 2])",torch.int8,False
-conv.18.bias,torch.Size([32]),torch.int8,False
-fc.2.weight,"torch.Size([128, 512])",torch.int8,False
-fc.5.weight,"torch.Size([110, 128])",torch.int8,False
+fc.2.weight,"torch.Size([512, 2048])",torch.int8,False
+fc.5.weight,"torch.Size([512, 512])",torch.int8,False
+fc.8.weight,"torch.Size([110, 512])",torch.int8,False

@@ -1,0 +1,14 @@
+date,trial,grouping_optim_target,channels,input,net,mapper.compile time,result,Core required,note
+12/06,1,"both",2,64x64,convpool3x3+fc,"18.7s",success,41,
+12/06,1,"core",2,64x64,convpool3x3+fc,"17.6s",success,41,
+12/06,1,"latency",2,64x64,convpool3x3+fc,"17.7s",success,41,
+12/06,2,"both",2,128x128,convpool3x3+fc,"48m",fail,N/A,"!问题：即使是单层，输入层128x128布线了48分钟还布不出来"
+12/06,3,"both",2,64x64,(convpool3x3+conv3x3)*3+fc*2,"1m39.7s",success,128,"只布了1m39.7s，布线时间很短，可以考虑加大channels数量或者网络层数"
+12/06,4,"both",4,64x64,convpool3x3+fc,"约5m",success,130,"用单层网络试试channels=4的布线速度"
+12/06,4,"both",3,64x64,(convpool3x3+conv3x3)*3+fc*2,"6m39.7s",success,285,"trial3的channels=2改为channels=3，仅供参考"
+12/06,4,"both",4,64x64,(convpool3x3+conv3x3)*3+fc*2,"14m20.3s",success,379,"trial3的channels=2改为channels=4，仅供参考"
+12/07,5,"both",4,64x64,conv3x3+(convpool3x3+conv3x3)*3+fc*2,"68m",fail,N/A,
+12/07,5,"both",4,64x64,(convpool3x3+conv3x3*2)*3+fc*3,"60m",fail,N/A,
+12/07,6,"both",4,64x64,(convpool3x3+conv3x3)*3+fc*3,"13m44.3s",success,380,"多塞一层fc竟然只多了1个core 最终选择了这个版本进行训练"
+12/07,6,"both",4,64x64,(convpool3x3+conv3x3)*3+fc*4,"13m35.1s",success,381,"多塞一层fc竟然只多了1个core"
+
