@@ -16,6 +16,20 @@
 15-classify_dvsg/DVS128Gesture/**
 15-classify_dvsg/DVS128Gesture/.*
 
+# exclude temporary code folder '15-classify_dvsg/pb_infer'
+15-classify_dvsg/pb_infer
+15-classify_dvsg/pb_infer/**
+15-classify_dvsg/pb_infer/.*
+
+# include folder '16-davispku' and all its subfolders
+!16-davispku
+!16-davispku/**
+!16-davispku/.*
+
+# exclude binary file folder named 'debug', 'bin'
+*/debug
+*/bin
+
 # include gitignore
 !.gitignore
 
