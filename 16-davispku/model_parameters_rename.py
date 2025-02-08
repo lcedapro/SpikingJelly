@@ -14,7 +14,7 @@ def manual_rename(state_dict:OrderedDict, src:list, dst:list):
 
 def main():
     # 加载原始权重文件
-    checkpoint_path = './logs_897/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_bn2conv.pth'
+    checkpoint_path = './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/checkpoint_max_bn2conv.pth'
     checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
 
     # 手动指定重命名前后键名
@@ -26,7 +26,7 @@ def main():
     fused_checkpoint['net'] = manual_rename(checkpoint['net'], src, dst)
 
     # 保存新的权重文件
-    fused_checkpoint_path = './logs_897/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_bn2conv.pth'
+    fused_checkpoint_path = './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/checkpoint_max_bn2conv.pth'
     torch.save(fused_checkpoint, fused_checkpoint_path)
     print("参数重命名完成，新权重文件保存为 " + fused_checkpoint_path)
 

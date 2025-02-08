@@ -16,7 +16,7 @@ QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
 from base.csv2frames_1process import integrate_events_to_one_frame_1bit
 FRAME_DELAY = 1000
 DISPLAYSCALEFACTOR = 120
-LETTER_LIST = ['D', 'A', 'V', 'I', 'S', 'P', 'K', 'U']
+LETTER_LIST = ['D', 'A', 'V', 'I', 'S', 'P', 'K', 'U', 'others']
 
 import time
 
@@ -137,8 +137,8 @@ class AedatGUI(QMainWindow, Ui_MainWindow):
         # PAIBox仿真器
         self._sim_timestep = 4
         self.paiboxnet = PAIBoxNet(2, self._sim_timestep,
-            './logs_897/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth',
-            './logs_897/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/vthr_list.npy')
+            './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/checkpoint_max_conv2int.pth',
+            './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/vthr_list.npy')
         # 计数器（每4个frame(shape=(346, 260))形成一个frames(shape=(4, 2, 346, 260))
         self.frame_counter = 0
         # 积分好的帧（shape=(4, 2, 346, 260)）

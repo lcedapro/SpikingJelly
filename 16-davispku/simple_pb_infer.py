@@ -9,13 +9,13 @@ from torch.utils.data import DataLoader
 
 from voting import voting
 
-SIM_TIMESTEP = 8 # <=16
+SIM_TIMESTEP = 4 # <=16
 COMPILE_EN = False
 
 # Dataloader
 # 设置训练集和测试集的目录
 test_dir = './duration_1000/test'
-test_dataset = CustomImageDataset(root_dir=test_dir, target_t=8, expand_factor=1, random_en=False)
+test_dataset = CustomImageDataset(root_dir=test_dir, target_t=4, expand_factor=1, random_en=True)
 test_data_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=1, drop_last=False, pin_memory=True)
 print(len(test_data_loader))
 
@@ -45,7 +45,7 @@ class Conv2d_Net(pb.Network):
         self.n11 = pb.LIF(channels*8 * 4 * 4, threshold=param_dict['fc.5.vthr'], reset_v=0, tick_wait_start=6) # fc
         self.fc_1 = pb.FullConn(self.n10, self.n11, conn_type=pb.SynConnType.All2All, weights=param_dict['fc.5.weight'])
 
-        self.n12 = pb.LIF(80, threshold=param_dict['fc.8.vthr'], reset_v=0, tick_wait_start=7) # fc
+        self.n12 = pb.LIF(90, threshold=param_dict['fc.8.vthr'], reset_v=0, tick_wait_start=7) # fc
         self.fc_2 = pb.FullConn(self.n11, self.n12, conn_type=pb.SynConnType.All2All, weights=param_dict['fc.8.weight'])
 
         self.probe1 = pb.Probe(self.n12, "spike")
@@ -139,8 +139,8 @@ class PAIBoxNet:
 # 测试程序
 def test():
     paiboxnet = PAIBoxNet(2, SIM_TIMESTEP,
-         './logs_897/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth',
-         './logs_897/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/vthr_list.npy')
+         './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/checkpoint_max_conv2int.pth',
+         './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/vthr_list.npy')
     for i, (image_tensor, label_tensor) in enumerate(test_data_loader):
         # 仿真时间 [N, T, C, H, W] -> [N, T=SIM_TIMESTEP, C, H, W]
         image_tensor = image_tensor[:, :SIM_TIMESTEP, :, :, :]
@@ -164,8 +164,8 @@ if __name__ == "__main__":
     if COMPILE_EN:
 
         paiboxnet = PAIBoxNet(2, SIM_TIMESTEP,
-            './logs_897/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth',
-            './logs_897/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/vthr_list.npy')
+            './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/checkpoint_max_conv2int.pth',
+            './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/vthr_list.npy')
         mapper = pb.Mapper()
 
         mapper.build(paiboxnet.pb_net)

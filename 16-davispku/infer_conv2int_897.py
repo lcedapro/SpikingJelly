@@ -1,5 +1,5 @@
-# py .\infer_conv2int_897.py -data_dir ./ -out_dir ./logs -channels 2 -resume './logs_897/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth'
-# epoch=0, test_loss=0.002518921159207821, test_acc=1.0, max_test_acc=0, total_time=5.236210346221924
+# py .\infer_conv2int_897.py -data_dir ./ -out_dir ./logs -channels 2 -resume './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/checkpoint_max_conv2int.pth'
+# epoch=0, test_loss=0.050305990036576986, test_acc=0.8125, max_test_acc=0, total_time=6.663844585418701
 
 import torch
 import torch.nn as nn
@@ -53,7 +53,7 @@ class PythonNet(nn.Module):
             nn.Linear(channels*8 * 8 * 8, channels*8 * 4 * 4, bias=False),
             neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True, v_threshold=vthr_list[5]),
             layer.Dropout(0.5),
-            nn.Linear(channels*8 * 4 * 4, 80, bias=False),
+            nn.Linear(channels*8 * 4 * 4, 90, bias=False),
             neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True, v_threshold=vthr_list[6])
         )
         self.vote = VotingLayer(10)
@@ -103,14 +103,14 @@ try:
                 layer.SeqToANNContainer(nn.Linear(channels*8 * 8 * 8, channels*8 * 4 * 4, bias=False)),
                 neuron.MultiStepIFNode(surrogate_function=surrogate.ATan(), detach_reset=True, backend='cupy', v_threshold=vthr_list[5]),
                 layer.MultiStepDropout(0.5),
-                layer.SeqToANNContainer(nn.Linear(channels*8 * 4 * 4, 80, bias=False)),
+                layer.SeqToANNContainer(nn.Linear(channels*8 * 4 * 4, 90, bias=False)),
                 neuron.MultiStepIFNode(surrogate_function=surrogate.ATan(), detach_reset=True, backend='cupy', v_threshold=vthr_list[6])
             )
             self.vote = VotingLayer(10)
 
         def forward(self, x: torch.Tensor):
             x = x.permute(1, 0, 2, 3, 4)  # [N, T, 2, H, W] -> [T, N, 2, H, W]
-            out_spikes = self.fc(self.conv(self.pool(x)))  # shape = [T, N, 80]
+            out_spikes = self.fc(self.conv(self.pool(x)))  # shape = [T, N, 90]
             return self.vote(out_spikes.mean(0))
 
         @staticmethod
@@ -272,8 +272,8 @@ def main():
     test_dir = './duration_1000/test'
 
     # 创建训练集和测试集的数据集实例
-    train_dataset = CustomImageDataset(root_dir=train_dir, target_t=8, expand_factor=1, random_en=True)
-    test_dataset = CustomImageDataset(root_dir=test_dir, target_t=8, expand_factor=1, random_en=False)
+    train_dataset = CustomImageDataset(root_dir=train_dir, target_t=4, expand_factor=1, random_en=True)
+    test_dataset = CustomImageDataset(root_dir=test_dir, target_t=4, expand_factor=1, random_en=True)
 
     # 创建训练集和测试集的DataLoader
     train_data_loader = DataLoader(train_dataset, batch_size=args.b, shuffle=True, num_workers=args.j, drop_last=True, pin_memory=True)
@@ -303,7 +303,7 @@ def main():
             for frame, label in test_data_loader:
                 frame = frame.float().to(args.device)
                 label = label.to(args.device)
-                label_onehot = F.one_hot(label, 8).float()
+                label_onehot = F.one_hot(label, 9).float()
                 out_fr = net(frame)
                 loss = F.mse_loss(out_fr, label_onehot)
 

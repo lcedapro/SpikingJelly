@@ -9,17 +9,23 @@ from spikingjelly.activation_based import neuron, functional, surrogate, layer
 from CustomImageDataset import CustomImageDataset
 from torch.utils.data import DataLoader
 
+_seed_ = 2020
+torch.manual_seed(_seed_)  # use torch.manual_seed() to seed the RNG for all devices (both CPU and CUDA)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+np.random.seed(_seed_)
+
 from infer_conv2int_897 import PythonNet
 from voting import voting
-vthr_list = np.load('./logs_897/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/vthr_list.npy') # vthr from model_parameters_conv2int.py
+vthr_list = np.load('./logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/vthr_list.npy') # vthr from model_parameters_conv2int.py
 
-SIM_TIMESTEP = 8 # <=16
+SIM_TIMESTEP = 4 # <=16
 COMPILE_EN = False
 
 # Dataloader
 # 设置训练集和测试集的目录
 test_dir = './duration_1000/test'
-test_dataset = CustomImageDataset(root_dir=test_dir, target_t=8, expand_factor=1, random_en=False)
+test_dataset = CustomImageDataset(root_dir=test_dir, target_t=4, expand_factor=1, random_en=True)
 test_data_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=1, drop_last=False, pin_memory=True)
 print(len(test_data_loader))
 
@@ -55,7 +61,7 @@ class Conv2d_Net(pb.Network):
         self.n11 = pb.LIF(channels*8 * 4 * 4, threshold=param_dict['fc.5.vthr'], reset_v=0, tick_wait_start=6) # fc
         self.fc_1 = pb.FullConn(self.n10, self.n11, conn_type=pb.SynConnType.All2All, weights=param_dict['fc.5.weight'])
 
-        self.n12 = pb.LIF(80, threshold=param_dict['fc.8.vthr'], reset_v=0, tick_wait_start=7) # fc
+        self.n12 = pb.LIF(90, threshold=param_dict['fc.8.vthr'], reset_v=0, tick_wait_start=7) # fc
         self.fc_2 = pb.FullConn(self.n11, self.n12, conn_type=pb.SynConnType.All2All, weights=param_dict['fc.8.weight'])
 
         self.probe1 = pb.Probe(self.n12, "spike")
@@ -71,7 +77,7 @@ def getNetParam():
     param_dict["layer_num"] = layer_num
     param_dict["delay"] = delay
 
-    checkpoint = torch.load('./logs_897/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth', map_location='cpu', weights_only=True)
+    checkpoint = torch.load('./logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/checkpoint_max_conv2int.pth', map_location='cpu', weights_only=True)
     param_dict['conv.0.weight']=checkpoint['net']['conv.0.weight'].numpy().astype(np.int8)
     param_dict['conv.0.bias']=checkpoint['net']['conv.0.bias'].numpy().astype(np.int8)
     param_dict['conv.2.weight']=checkpoint['net']['conv.2.weight'].numpy().astype(np.int8)
@@ -117,7 +123,7 @@ def pb_inference(image):
 # SpikingJelly网络定义和初始化
 vthr_list_tofloat = [float(vthr) for vthr in vthr_list]
 net = PythonNet(channels=2, vthr_list=vthr_list_tofloat)
-checkpoint = torch.load('./logs_897/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth', map_location='cpu', weights_only=True)
+checkpoint = torch.load('./logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/checkpoint_max_conv2int.pth', map_location='cpu', weights_only=True)
 net.load_state_dict(checkpoint['net'])
 net.eval()
 
