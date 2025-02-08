@@ -26,6 +26,12 @@
 !16-davispku/**
 !16-davispku/.*
 
+# exclude temporary code folder '16-davispku/old'
+16-davispku/old
+16-davispku/old/**
+16-davispku/old/.*
+
+
 # exclude binary file folder named 'debug', 'bin'
 */debug
 */bin
