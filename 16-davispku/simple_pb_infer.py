@@ -4,7 +4,7 @@ import torch
 import numpy as np
 import paibox as pb
 
-from CustomImageDataset import CustomImageDataset
+from CustomImageDataset0 import CustomImageDataset0
 from torch.utils.data import DataLoader
 
 from voting import voting
@@ -15,7 +15,7 @@ COMPILE_EN = False
 # Dataloader
 # 设置训练集和测试集的目录
 test_dir = './duration_1000/test'
-test_dataset = CustomImageDataset(root_dir=test_dir, target_t=4, expand_factor=1, random_en=True)
+test_dataset = CustomImageDataset0(root_dir=test_dir, target_t=4, expand_factor=1, random_en=True, num_crops_per_video=1)
 test_data_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=1, drop_last=False, pin_memory=True)
 print(len(test_data_loader))
 
@@ -24,28 +24,32 @@ class Conv2d_Net(pb.Network):
     def __init__(self, channels, param_dict):
         super().__init__()
         self.sim_timestep = param_dict["timestep"]
-        self.image_69 = np.zeros((self.sim_timestep, 2, 69, 52), dtype=np.int8)
+        self.image_69 = np.zeros((self.sim_timestep, 1, 86, 65), dtype=np.int8)
 
-        self.i0 = pb.InputProj(input=self.fakeout_with_t, shape_out=(2, 69, 52))
-        self.n0 = pb.LIF((channels*2, 35, 26), bias=param_dict['conv.0.bias'], threshold=param_dict['conv.0.vthr'], reset_v=0, tick_wait_start=1) # convpool3x3
+        self.i0 = pb.InputProj(input=self.fakeout_with_t, shape_out=(1, 86, 65))
+        self.n0 = pb.LIF((2, 42, 32), bias=param_dict['conv.0.bias'], threshold=param_dict['conv.0.vthr'], reset_v=0, tick_wait_start=1) # convpool7x7p2s2
         self.conv2d_0 = pb.Conv2d(self.i0, self.n0, kernel=param_dict['conv.0.weight'], padding=2, stride=2)
 
-        self.n1 = pb.LIF((channels*2, 35, 26), bias=param_dict['conv.2.bias'], threshold=param_dict['conv.2.vthr'], reset_v=0, tick_wait_start=2) # conv3x3
-        self.conv2d_1 = pb.Conv2d(self.n0, self.n1, kernel=param_dict['conv.2.weight'], padding=2, stride=1)
+        self.n1_0 = pb.LIF((2, 21, 16), bias=param_dict['conv.2.bias'][:2], threshold=param_dict['conv.2.vthr'], reset_v=0, tick_wait_start=2) # convpool7x7p3s2
+        self.conv2d_1_0 = pb.Conv2d(self.n0, self.n1_0, kernel=param_dict['conv.2.weight'][:2], padding=3, stride=2)
 
-        self.n2 = pb.LIF((channels*4, 18, 13), bias=param_dict['conv.4.bias'], threshold=param_dict['conv.4.vthr'], reset_v=0, tick_wait_start=3) # convpool3x3
-        self.conv2d_2 = pb.Conv2d(self.n1, self.n2, kernel=param_dict['conv.4.weight'], padding=2, stride=2)
+        self.n1_1 = pb.LIF((2, 21, 16), bias=param_dict['conv.2.bias'][2:], threshold=param_dict['conv.2.vthr'], reset_v=0, tick_wait_start=2) # convpool7x7p3s2
+        self.conv2d_1_1 = pb.Conv2d(self.n0, self.n1_1, kernel=param_dict['conv.2.weight'][2:], padding=3, stride=2)
 
-        self.n3 = pb.LIF((channels*4, 18, 13), bias=param_dict['conv.6.bias'], threshold=param_dict['conv.6.vthr'], reset_v=0, tick_wait_start=4) # conv3x3
-        self.conv2d_3 = pb.Conv2d(self.n2, self.n3, kernel=param_dict['conv.6.weight'], padding=2, stride=1)
+        self.n2_0 = pb.LIF((2, 21, 16), bias=param_dict['conv.4.bias'][:2], threshold=param_dict['conv.4.vthr'], reset_v=0, tick_wait_start=3) # conv5x5
+        self.conv2d_2_0 = pb.Conv2d(self.n1_0, self.n2_0, kernel=param_dict['conv.4.weight'][:2], padding=2, stride=1)
 
-        self.n10 = pb.LIF(channels*8 * 8 * 8, threshold=param_dict['fc.2.vthr'], reset_v=0, tick_wait_start=5) # fc
-        self.fc_0 = pb.FullConn(self.n3, self.n10, conn_type=pb.SynConnType.All2All, weights=param_dict['fc.2.weight'])
+        self.n2_1 = pb.LIF((2, 21, 16), bias=param_dict['conv.4.bias'][2:], threshold=param_dict['conv.4.vthr'], reset_v=0, tick_wait_start=3) # conv5x5
+        self.conv2d_2_1 = pb.Conv2d(self.n1_1, self.n2_1, kernel=param_dict['conv.4.weight'][2:], padding=2, stride=1)
 
-        self.n11 = pb.LIF(channels*8 * 4 * 4, threshold=param_dict['fc.5.vthr'], reset_v=0, tick_wait_start=6) # fc
+        self.n10 = pb.LIF(512, threshold=param_dict['fc.2.vthr'], reset_v=0, tick_wait_start=4) # fc
+        self.fc_0_0 = pb.FullConn(self.n2_0, self.n10, conn_type=pb.SynConnType.All2All, weights=param_dict['fc.2.weight'][:2*21*16])
+        self.fc_0_1 = pb.FullConn(self.n2_1, self.n10, conn_type=pb.SynConnType.All2All, weights=param_dict['fc.2.weight'][2*21*16:])
+
+        self.n11 = pb.LIF(128, threshold=param_dict['fc.5.vthr'], reset_v=0, tick_wait_start=5) # fc
         self.fc_1 = pb.FullConn(self.n10, self.n11, conn_type=pb.SynConnType.All2All, weights=param_dict['fc.5.weight'])
 
-        self.n12 = pb.LIF(90, threshold=param_dict['fc.8.vthr'], reset_v=0, tick_wait_start=7) # fc
+        self.n12 = pb.LIF(90, threshold=param_dict['fc.8.vthr'], reset_v=0, tick_wait_start=6) # fc
         self.fc_2 = pb.FullConn(self.n11, self.n12, conn_type=pb.SynConnType.All2All, weights=param_dict['fc.8.weight'])
 
         self.probe1 = pb.Probe(self.n12, "spike")
@@ -69,7 +73,7 @@ class PAIBoxNet:
     def _getNetParam(self, timestep, param_dict_path, vthr_list_path):
         param_dict = {}
         timestep = timestep
-        layer_num = 7
+        layer_num = 6
         delay = layer_num - 1
         param_dict["timestep"] = timestep
         param_dict["layer_num"] = layer_num
@@ -83,18 +87,15 @@ class PAIBoxNet:
         param_dict['conv.2.bias']=checkpoint['net']['conv.2.bias'].numpy().astype(np.int8)
         param_dict['conv.4.weight']=checkpoint['net']['conv.4.weight'].numpy().astype(np.int8)
         param_dict['conv.4.bias']=checkpoint['net']['conv.4.bias'].numpy().astype(np.int8)
-        param_dict['conv.6.weight']=checkpoint['net']['conv.6.weight'].numpy().astype(np.int8)
-        param_dict['conv.6.bias']=checkpoint['net']['conv.6.bias'].numpy().astype(np.int8)
         param_dict['fc.2.weight']=checkpoint['net']['fc.2.weight'].numpy().astype(np.int8).T
         param_dict['fc.5.weight']=checkpoint['net']['fc.5.weight'].numpy().astype(np.int8).T
         param_dict['fc.8.weight']=checkpoint['net']['fc.8.weight'].numpy().astype(np.int8).T
         param_dict['conv.0.vthr']=int(vthr_list[0])
         param_dict['conv.2.vthr']=int(vthr_list[1])
         param_dict['conv.4.vthr']=int(vthr_list[2])
-        param_dict['conv.6.vthr']=int(vthr_list[3])
-        param_dict['fc.2.vthr']=int(vthr_list[4])
-        param_dict['fc.5.vthr']=int(vthr_list[5])
-        param_dict['fc.8.vthr']=int(vthr_list[6])
+        param_dict['fc.2.vthr']=int(vthr_list[3])
+        param_dict['fc.5.vthr']=int(vthr_list[4])
+        param_dict['fc.8.vthr']=int(vthr_list[5])
 
         return param_dict
 
@@ -106,9 +107,10 @@ class PAIBoxNet:
         输出: spike_sum_pb, pred_pb
         """
         print(image.shape)
-        # 数据预处理：将image的形状从[2, 346, 260]用maxpool2d池化为[2, 69, 52]
-        maxpool2d = torch.nn.MaxPool2d(kernel_size=5, stride=5)
+        # 数据预处理：将image的形状从[2, 346, 260]用maxpool2d池化为[2, 86, 65]
+        maxpool2d = torch.nn.MaxPool2d(kernel_size=4, stride=4)
         if type(image) == np.ndarray:
+            image = image.astype(np.int8)
             image = torch.from_numpy(image) # numpy -> tensor
         elif type(image) == torch.Tensor:
             pass
@@ -139,8 +141,8 @@ class PAIBoxNet:
 # 测试程序
 def test():
     paiboxnet = PAIBoxNet(2, SIM_TIMESTEP,
-         './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/checkpoint_max_conv2int.pth',
-         './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/vthr_list.npy')
+         './logs_t1e4_gconv/T_4_b_16_c_2_SGD_lr_0.2_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth',
+         './logs_t1e4_gconv/T_4_b_16_c_2_SGD_lr_0.2_CosALR_48_amp_cupy/vthr_list.npy')
     for i, (image_tensor, label_tensor) in enumerate(test_data_loader):
         # 仿真时间 [N, T, C, H, W] -> [N, T=SIM_TIMESTEP, C, H, W]
         image_tensor = image_tensor[:, :SIM_TIMESTEP, :, :, :]
@@ -164,8 +166,8 @@ if __name__ == "__main__":
     if COMPILE_EN:
 
         paiboxnet = PAIBoxNet(2, SIM_TIMESTEP,
-            './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/checkpoint_max_conv2int.pth',
-            './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/vthr_list.npy')
+            './logs_t1e4_gconv/T_4_b_16_c_2_SGD_lr_0.2_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth',
+            './logs_t1e4_gconv/T_4_b_16_c_2_SGD_lr_0.2_CosALR_48_amp_cupy/vthr_list.npy')
         mapper = pb.Mapper()
 
         mapper.build(paiboxnet.pb_net)

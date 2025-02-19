@@ -5,13 +5,15 @@ import torch
 import random
 
 class CustomImageDataset(Dataset):
-    def __init__(self, root_dir, transform=None, target_t=8, expand_factor=1, random_en=True):
+    def __init__(self, root_dir, transform=None, target_t=8, expand_factor=1, random_en=True, num_crops_per_video=1):
         """
         Args:
             root_dir (string): Directory with all the images organized in subfolders.
             transform (callable, optional): Optional transform to be applied on a sample.
-            target_t: 目标时间帧数 (T=4)
-            expand_factor: 帧扩展倍数 (e.g., 2表示扩展到8帧)
+            target_t: 目标时间帧数 (T=8)
+            expand_factor: 帧扩展倍数 (e.g., 2表示扩展到16帧)
+            random_en: 是否启用随机裁剪
+            num_crops_per_video: 每个视频裁剪的样本数量
         """
         self.root_dir = root_dir
         self.transform = transform
@@ -20,6 +22,7 @@ class CustomImageDataset(Dataset):
         self.target_t = target_t
         self.expand_factor = expand_factor
         self.random_en = random_en
+        self.num_crops_per_video = num_crops_per_video  # 每个视频裁剪的样本数量
         
         # Collect all .npz file paths and their corresponding labels
         for class_label in self.classes:
@@ -31,10 +34,15 @@ class CustomImageDataset(Dataset):
                     self.image_paths.append((os.path.join(class_dir, file_name), int(class_label)))
     
     def __len__(self):
-        return len(self.image_paths)
+        # 数据集长度 = 视频数量 × 每个视频的裁剪样本数量
+        return len(self.image_paths) * self.num_crops_per_video
     
     def __getitem__(self, idx):
-        img_path, label = self.image_paths[idx]
+        # 计算视频索引和裁剪索引
+        video_idx = idx // self.num_crops_per_video
+        crop_idx = idx % self.num_crops_per_video
+        
+        img_path, label = self.image_paths[video_idx]
         data = np.load(img_path)  # Load .npz file
         
         # Assuming .npz contains image data in a standard key like 'arr_0'
@@ -70,15 +78,15 @@ if __name__ == '__main__':
     test_dir = './duration_1000/test'
 
     # 创建训练集和测试集的数据集实例
-    train_dataset = CustomImageDataset(root_dir=train_dir, target_t=8, expand_factor=1, random_en=True)
-    test_dataset = CustomImageDataset(root_dir=test_dir, target_t=8, expand_factor=1, random_en=False)
+    train_dataset = CustomImageDataset(root_dir=train_dir, target_t=1, expand_factor=1, random_en=True, num_crops_per_video=5)
+    test_dataset = CustomImageDataset(root_dir=test_dir, target_t=1, expand_factor=1, random_en=False, num_crops_per_video=5)
 
     # 创建训练集和测试集的DataLoader
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=0)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=0)
 
-    print(len(train_loader))
-    print(len(train_loader))
+    print(f"Train dataset length: {len(train_dataset)}")
+    print(f"Test dataset length: {len(test_dataset)}")
 
     # 示例：打印前20个数据的shape和label
     count = 0
@@ -100,3 +108,8 @@ if __name__ == '__main__':
         count += images.size(0)
         if count >= 20:
             break
+
+# https://kimi.moonshot.cn/chat/cuq1c154335ccdjmc94g
+# 帮我看看这个PYTORCH自定义数据集代码。我写的代码包含一个随机裁剪功能，用于将数据集中的图片流裁剪成指定的时间帧数。
+# 但是，如果这样裁剪，那么数据集中有160个视频，裁剪出来的(target_t,C,H,W)数组也只有160个。这样会导致一个视频的大部分时间都没有覆盖到。
+# 你能帮我修改成160个视频，裁剪出较多的(target_t,C,H,W)数组吗？

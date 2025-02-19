@@ -72,7 +72,7 @@ def fuse_model_bn_to_conv(state_dict):
 
 def main():
     # 加载原始权重文件
-    checkpoint_path = './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/checkpoint_max.pth'
+    checkpoint_path = './logs_t1e4_gconv/T_4_b_16_c_2_SGD_lr_0.2_CosALR_48_amp_cupy/checkpoint_max.pth'
     checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
     
     # 将BatchNorm层的参数吸收到Conv层中
@@ -80,7 +80,7 @@ def main():
     fused_checkpoint['net'] = fuse_model_bn_to_conv(checkpoint['net'])
 
     # 保存新的权重文件
-    fused_checkpoint_path = './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/checkpoint_max_bn2conv.pth'
+    fused_checkpoint_path = './logs_t1e4_gconv/T_4_b_16_c_2_SGD_lr_0.2_CosALR_48_amp_cupy/checkpoint_max_bn2conv.pth'
     torch.save(fused_checkpoint, fused_checkpoint_path)
     print("BatchNorm参数已吸收到Conv层，新权重文件保存为 " + fused_checkpoint_path)
     print("注意：如果要进行cpu推理验证，还需要进行模型参数键名重命名")

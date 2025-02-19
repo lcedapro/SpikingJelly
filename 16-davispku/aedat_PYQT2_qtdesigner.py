@@ -137,8 +137,8 @@ class AedatGUI(QMainWindow, Ui_MainWindow):
         # PAIBox仿真器
         self._sim_timestep = 4
         self.paiboxnet = PAIBoxNet(2, self._sim_timestep,
-            './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/checkpoint_max_conv2int.pth',
-            './logs_897_others/T_16_b_4_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_random_en=True/vthr_list.npy')
+            './logs_gconv/T_4_b_16_c_2_SGD_lr_0.2_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth',
+            './logs_gconv/T_4_b_16_c_2_SGD_lr_0.2_CosALR_48_amp_cupy/vthr_list.npy')
         # 计数器（每4个frame(shape=(346, 260))形成一个frames(shape=(4, 2, 346, 260))
         self.frame_counter = 0
         # 积分好的帧（shape=(4, 2, 346, 260)）
@@ -219,22 +219,21 @@ class AedatGUI(QMainWindow, Ui_MainWindow):
     def update_paibox_inference(self, frames: np.ndarray):
         """更新PAIBox推理及显示"""
         # 如果积累到一定数量，则进行PAIBox推理
-        self.integrated_frames[self.frame_counter] = frames[0] # 把当前帧数据存入积分帧中
-        self.lcdNumber.display(self.frame_counter)
-        self.frame_counter += 1
-        if self.frame_counter % 4 == 0:
-            self.frame_counter = 0
-            # 进行PAIBox推理
-            spike_sum_pb, pred_pb = self.paiboxnet.pb_inference(self.integrated_frames)
-            print("spike_sum_pb:", spike_sum_pb)
-            print("pred_pb:", pred_pb)
-            # 显示PAIBox推理结果
-            predicted_letter = LETTER_LIST[pred_pb]
-            self.textBrowser_4.setText(str(spike_sum_pb))
-            self.textBrowser_5.setText(predicted_letter)
-            # 显示置信度
-            credit = spike_sum_pb[pred_pb] / 40.0
-            self.textBrowser_6.setText(str(credit))
+        self.lcdNumber.display(0)
+        # 进行PAIBox推理
+        print(frames.shape)
+        print(frames[:,0:1,:,:].shape)
+        print(frames[:,0:1,:,:].repeat(4, axis=0).shape)
+        spike_sum_pb, pred_pb = self.paiboxnet.pb_inference(frames[:,0:1,:,:].repeat(4, axis=0)) # t1e4
+        print("spike_sum_pb:", spike_sum_pb)
+        print("pred_pb:", pred_pb)
+        # 显示PAIBox推理结果
+        predicted_letter = LETTER_LIST[pred_pb]
+        self.textBrowser_4.setText(str(spike_sum_pb))
+        self.textBrowser_5.setText(predicted_letter)
+        # 显示置信度
+        credit = spike_sum_pb[pred_pb] / 40.0
+        self.textBrowser_6.setText(str(credit))
 
     def quit_application(self):
         """退出程序"""
