@@ -3,14 +3,15 @@
 import torch
 import numpy as np
 import paibox as pb
-
+pb.BACKEND_CONFIG.test_chip_addr = (2, 0)
+pb.BACKEND_CONFIG.target_chip_addr = [(1, 0), (0, 0), (1, 1), (0, 1)]
 from CustomImageDataset0 import CustomImageDataset0
 from torch.utils.data import DataLoader
 
 from voting import voting
 
 SIM_TIMESTEP = 4 # <=16
-COMPILE_EN = False
+COMPILE_EN = True
 
 # Dataloader
 # 设置训练集和测试集的目录
@@ -55,9 +56,11 @@ class Conv2d_Net(pb.Network):
         self.probe1 = pb.Probe(self.n12, "spike")
     
     def fakeout_with_t(self, t, **kwargs): # ignore other arguments except `t` & `bias`
+        # 如果t-1小于self.sim_timestep，则打印t和image[t-1]，并返回image[t-1]
         if t-1 < self.sim_timestep:
             print(f't = {t}, input = image[{t-1}]')
             return self.image_69[t-1]
+        # 否则，打印t和image[-1]，并返回image[-1]
         else:
             print(f't = {t}, input = image[-1]')
             return self.image_69[-1]
@@ -181,7 +184,7 @@ if __name__ == "__main__":
         print("Core occupied:", graph_info["n_core_occupied"])
 
         mapper.export(
-            write_to_file=True, fp="./debug", format="npy", export_core_params=False
+            write_to_file=True, fp="./debug", format="npy", export_core_params=True
         )
 
         # Clear all the results

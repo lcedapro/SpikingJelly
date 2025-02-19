@@ -113,13 +113,14 @@ def pb_inference(image):
     # Decode the output
     spike_out = sim.data[pb_net.probe1].astype(np.int32)
     spike_out = spike_out[param_dict["delay"] :]
+    original_spike_out = spike_out.copy()
     spike_out = voting(spike_out, 10)
     spike_sum_pb = spike_out.sum(axis=0)
     pred_pb = np.argmax(spike_sum_pb)
     print("Predicted number:", pred_pb)
 
     sim.reset()
-    return spike_sum_pb, pred_pb
+    return spike_sum_pb, pred_pb, original_spike_out
 
 # SpikingJelly网络定义和初始化
 vthr_list_tofloat = [float(vthr) for vthr in vthr_list]
@@ -181,7 +182,10 @@ def test(test_num: int = 100):
         test_samples += 1
 
         # PAIBox推理
-        spike_sum_pb, pred_pb = pb_inference(image_69)
+        spike_sum_pb, pred_pb, original_spike_out = pb_inference(image_69)
+        # 在推理时保存图片到/image文件夹下，文件名为{i}.npy
+        np.save(f"仿真输入输出示例/image/label_{label}_iter_{i}_image.npy", image_69[0])
+        np.save(f"仿真输入输出示例/spike_out/label_{label}_iter_{i}_spike_out.npy", original_spike_out)
         test_acc_pb += (pred_pb == label)
         if pred_pb != label:
             print("pb: failed")
