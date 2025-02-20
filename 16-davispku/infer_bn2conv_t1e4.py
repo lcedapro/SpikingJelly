@@ -1,5 +1,5 @@
-# py .\infer_bn2conv_t1e4.py -data_dir ./ -out_dir ./logs -channels 2 -resume './logs_t1e4_gconv/T_4_b_16_c_2_SGD_lr_0.2_CosALR_48_amp_cupy/checkpoint_max_bn2conv.pth'
-# epoch=0, test_loss=0.012626410858501913, test_acc=0.927734375, max_test_acc=0, total_time=12.788084983825684
+# py .\infer_bn2conv_t1e4.py -data_dir ./ -out_dir ./logs -channels 2 -resume './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_bn2conv.pth'
+# epoch=0, test_loss=0.015356716852693353, test_acc=0.923828125, max_test_acc=0, total_time=12.735677719116211
 
 import torch
 import torch.nn as nn
@@ -42,17 +42,15 @@ class PythonNet(nn.Module):
         # conv.extend(PythonNet.conv5x5(channels*4, channels*4))
         # self.conv = nn.Sequential(*conv)
         self.conv = nn.Sequential(
-            nn.Conv2d(1, 2, kernel_size=7, padding=2, stride=2, bias=True),
+            nn.Conv2d(1, 1, kernel_size=7, padding=2, stride=2, bias=True),
             neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True),
-            nn.Conv2d(2, 4, kernel_size=7, padding=3, stride=2, bias=True),
-            neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True),
-            nn.Conv2d(4, 4, kernel_size=5, padding=2, stride=1, groups=2, bias=True),
+            nn.Conv2d(1, 2, kernel_size=7, padding=3, stride=2, bias=True),
             neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True),
         )
         self.fc = nn.Sequential(
             nn.Flatten(),
             layer.Dropout(0.5),
-            nn.Linear(4 * 21 * 16, 8 * 8 * 8, bias=False),
+            nn.Linear(2 * 21 * 16, 8 * 8 * 8, bias=False),
             neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True),
             layer.Dropout(0.5),
             nn.Linear(8 * 8 * 8, 8 * 4 * 4, bias=False),
@@ -100,17 +98,15 @@ try:
             # conv.extend(CextNet.conv5x5(channels*4, channels*4))
             # self.conv = nn.Sequential(*conv)
             self.conv = nn.Sequential(
-                layer.SeqToANNContainer(nn.Conv2d(1, 2, kernel_size=7, padding=2, stride=2, bias=False), nn.BatchNorm2d(2)),
+                layer.SeqToANNContainer(nn.Conv2d(1, 1, kernel_size=7, padding=2, stride=2, bias=False), nn.BatchNorm2d(1)),
                 neuron.MultiStepIFNode(surrogate_function=surrogate.ATan(), detach_reset=True, backend='cupy'),
-                layer.SeqToANNContainer(nn.Conv2d(2, 4, kernel_size=7, padding=3, stride=2, bias=False), nn.BatchNorm2d(4)),
-                neuron.MultiStepIFNode(surrogate_function=surrogate.ATan(), detach_reset=True, backend='cupy'),
-                layer.SeqToANNContainer(nn.Conv2d(4, 4, kernel_size=5, padding=2, stride=1, groups=2, bias=False), nn.BatchNorm2d(4)),
+                layer.SeqToANNContainer(nn.Conv2d(1, 2, kernel_size=7, padding=3, stride=2, bias=False), nn.BatchNorm2d(2)),
                 neuron.MultiStepIFNode(surrogate_function=surrogate.ATan(), detach_reset=True, backend='cupy'),
             )
             self.fc = nn.Sequential(
                 nn.Flatten(2),
                 layer.MultiStepDropout(0.5),
-                layer.SeqToANNContainer(nn.Linear(4 * 21 * 16, 8 * 8 * 8, bias=False)),
+                layer.SeqToANNContainer(nn.Linear(2 * 21 * 16, 8 * 8 * 8, bias=False)),
                 neuron.MultiStepIFNode(surrogate_function=surrogate.ATan(), detach_reset=True, backend='cupy'),
                 layer.MultiStepDropout(0.5),
                 layer.SeqToANNContainer(nn.Linear(8 * 8 * 8, 8 * 4 * 4, bias=False)),

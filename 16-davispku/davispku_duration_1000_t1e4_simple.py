@@ -1,6 +1,3 @@
-# py .\infer_conv2int_t1e4.py -data_dir ./ -out_dir ./logs -channels 2 -resume './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth'
-# epoch=0, test_loss=0.015424804985741503, test_acc=0.921875, max_test_acc=0, total_time=12.671077251434326
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,16 +11,13 @@ import os
 import argparse
 
 import numpy as np
-from CustomImageDataset0 import CustomImageDataset0
+from CustomImageDataset import CustomImageDataset
 
 _seed_ = 2020
 torch.manual_seed(_seed_)  # use torch.manual_seed() to seed the RNG for all devices (both CPU and CUDA)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 np.random.seed(_seed_)
-
-vthr_list = np.load('./logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/vthr_list.npy')
-vthr_list = [float(vthr) for vthr in vthr_list]
 
 class VotingLayer(nn.Module):
     def __init__(self, voter_num: int):
@@ -35,7 +29,7 @@ class VotingLayer(nn.Module):
         return self.voting(x.unsqueeze(1)).squeeze(1)
 
 class PythonNet(nn.Module):
-    def __init__(self, channels: int, vthr_list: list):
+    def __init__(self, channels: int):
         super().__init__()
         self.pool = nn.Sequential(nn.MaxPool2d(4, 4))
         # conv = []
@@ -45,22 +39,22 @@ class PythonNet(nn.Module):
         # conv.extend(PythonNet.conv5x5(channels*4, channels*4))
         # self.conv = nn.Sequential(*conv)
         self.conv = nn.Sequential(
-            nn.Conv2d(1, 1, kernel_size=7, padding=2, stride=2, bias=True),
-            neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True, v_threshold=vthr_list[0]),
-            nn.Conv2d(1, 2, kernel_size=7, padding=3, stride=2, bias=True),
-            neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True, v_threshold=vthr_list[1]),
+            nn.Conv2d(1, 1, kernel_size=7, padding=2, stride=2, bias=False), nn.BatchNorm2d(1),
+            neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True),
+            nn.Conv2d(1, 2, kernel_size=7, padding=3, stride=2, bias=False), nn.BatchNorm2d(2),
+            neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True),
         )
         self.fc = nn.Sequential(
             nn.Flatten(),
             layer.Dropout(0.5),
             nn.Linear(2 * 21 * 16, 8 * 8 * 8, bias=False),
-            neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True, v_threshold=vthr_list[2]),
+            neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True),
             layer.Dropout(0.5),
             nn.Linear(8 * 8 * 8, 8 * 4 * 4, bias=False),
-            neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True, v_threshold=vthr_list[3]),
+            neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True),
             layer.Dropout(0.5),
             nn.Linear(8 * 4 * 4, 90, bias=False),
-            neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True, v_threshold=vthr_list[4])
+            neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True)
         )
         self.vote = VotingLayer(10)
 
@@ -268,8 +262,28 @@ def main():
     if args.cupy:
         net = CextNet(channels=args.channels)
     else:
-        net = PythonNet(channels=args.channels, vthr_list=vthr_list)
+        net = PythonNet(channels=args.channels)
     print(net)
+    net.to(args.device)
+
+
+
+
+    optimizer = None
+    if args.opt == 'SGD':
+        optimizer = torch.optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum)
+    elif args.opt == 'Adam':
+        optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
+    else:
+        raise NotImplementedError(args.opt)
+
+    lr_scheduler = None
+    if args.lr_scheduler == 'StepLR':
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
+    elif args.lr_scheduler == 'CosALR':
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.T_max)
+    else:
+        raise NotImplementedError(args.lr_scheduler)
 
     # train_set = DVS128Gesture(args.data_dir, train=True, data_type='frame', split_by='number', duration=131072)
     # test_set = DVS128Gesture(args.data_dir, train=False, data_type='frame', split_by='number', duration=131072)
@@ -295,8 +309,8 @@ def main():
     test_dir = './duration_1000/test'
 
     # 创建训练集和测试集的数据集实例
-    train_dataset = CustomImageDataset0(root_dir=train_dir, target_t=1, expand_factor=4, random_en=True, num_crops_per_video=8)
-    test_dataset = CustomImageDataset0(root_dir=test_dir, target_t=1, expand_factor=4, random_en=True, num_crops_per_video=8)
+    train_dataset = CustomImageDataset(root_dir=train_dir, target_t=1, expand_factor=4, random_en=True, num_crops_per_video=8)
+    test_dataset = CustomImageDataset(root_dir=test_dir, target_t=1, expand_factor=4, random_en=True, num_crops_per_video=8)
 
     # 创建训练集和测试集的DataLoader
     train_data_loader = DataLoader(train_dataset, batch_size=args.b, shuffle=True, num_workers=args.j, drop_last=True, pin_memory=True)
@@ -317,14 +331,80 @@ def main():
         checkpoint = torch.load(args.resume, map_location='cpu', weights_only=True)
         net.load_state_dict(checkpoint['net'])
 
-    for epoch in range(1):
+    out_dir = os.path.join(args.out_dir, f'T_{args.T}_b_{args.b}_c_{args.channels}_{args.opt}_lr_{args.lr}_')
+    if args.lr_scheduler == 'CosALR':
+        out_dir += f'CosALR_{args.T_max}'
+    elif args.lr_scheduler == 'StepLR':
+        out_dir += f'StepLR_{args.step_size}_{args.gamma}'
+    else:
+        raise NotImplementedError(args.lr_scheduler)
+
+    if args.amp:
+        out_dir += '_amp'
+    if args.cupy:
+        out_dir += '_cupy'
+
+
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+        print(f'Mkdir {out_dir}.')
+
+    # if not os.path.exists(os.path.join('/tf-logs', out_dir)):
+    #     os.mkdir(os.path.join('/tf-logs', out_dir))
+    #     print(f'Mkdir {os.path.join("/tf-logs", out_dir)}')
+
+    with open(os.path.join(out_dir, 'args.txt'), 'w', encoding='utf-8') as args_txt:
+        args_txt.write(str(args))
+
+    writer = SummaryWriter(os.path.join(out_dir, 'dvsg_logs'), purge_step=start_epoch)
+    # writer_autodl = SummaryWriter(os.path.join('/tf-logs', out_dir, 'dvsg_logs_autodl'), purge_step=start_epoch)
+
+    for epoch in range(start_epoch, args.epochs):
         start_time = time.time()
+        net.train()
+        train_loss = 0
+        train_acc = 0
+        train_samples = 0
+        for frame, label in train_data_loader:
+            optimizer.zero_grad()
+            frame = frame.float().to(args.device)
+            label = label.to(args.device)
+            label_onehot = F.one_hot(label, 9).float()
+            if args.amp:
+                with amp.autocast():
+                    out_fr = net(frame)
+                    loss = F.mse_loss(out_fr, label_onehot)
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                out_fr = net(frame)
+                loss = F.mse_loss(out_fr, label_onehot)
+                loss.backward()
+                optimizer.step()
+
+            train_samples += label.numel()
+            train_loss += loss.item() * label.numel()
+            train_acc += (out_fr.argmax(1) == label).float().sum().item()
+
+            functional.reset_net(net)
+        train_loss /= train_samples
+        train_acc /= train_samples
+
+        writer.add_scalar('train_loss', train_loss, epoch)
+        writer.add_scalar('train_acc', train_acc, epoch)
+        # writer_autodl.add_scalar('train_loss', train_loss, epoch)
+        # writer_autodl.add_scalar('train_acc', train_acc, epoch)
+        lr_scheduler.step()
+
         net.eval()
         test_loss = 0
         test_acc = 0
         test_samples = 0
         with torch.no_grad():
             for frame, label in test_data_loader:
+                frame = frame.float().to(args.device)
+                label = label.to(args.device)
                 label_onehot = F.one_hot(label, 9).float()
                 out_fr = net(frame)
                 loss = F.mse_loss(out_fr, label_onehot)
@@ -336,9 +416,34 @@ def main():
 
         test_loss /= test_samples
         test_acc /= test_samples
+        writer.add_scalar('test_loss', test_loss, epoch)
+        writer.add_scalar('test_acc', test_acc, epoch)
+        # writer_autodl.add_scalar('test_loss', test_loss, epoch)
+        # writer_autodl.add_scalar('test_acc', test_acc, epoch)
+
+        save_max = False
+        if test_acc > max_test_acc or ( test_acc == max_test_acc and test_loss < min_test_loss ):
+            save_max = True
+        if test_acc > max_test_acc:
+            max_test_acc = test_acc
+        if test_loss < min_test_loss:
+            min_test_loss = test_loss
+
+        checkpoint = {
+            'net': net.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'lr_scheduler': lr_scheduler.state_dict(),
+            'epoch': epoch,
+            'max_test_acc': max_test_acc
+        }
+
+        if save_max:
+            torch.save(checkpoint, os.path.join(out_dir, 'checkpoint_max.pth'))
+
+        torch.save(checkpoint, os.path.join(out_dir, 'checkpoint_latest.pth'))
 
         print(args)
-        print(f'epoch={epoch}, test_loss={test_loss}, test_acc={test_acc}, max_test_acc={max_test_acc}, total_time={time.time() - start_time}')
+        print(f'epoch={epoch}, train_loss={train_loss}, train_acc={train_acc}, test_loss={test_loss}, test_acc={test_acc}, max_test_acc={max_test_acc}, total_time={time.time() - start_time}')
 
 if __name__ == '__main__':
     main()

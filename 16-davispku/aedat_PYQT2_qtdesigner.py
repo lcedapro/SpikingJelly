@@ -137,8 +137,8 @@ class AedatGUI(QMainWindow, Ui_MainWindow):
         # PAIBox仿真器
         self._sim_timestep = 4
         self.paiboxnet = PAIBoxNet(2, self._sim_timestep,
-            './logs_gconv/T_4_b_16_c_2_SGD_lr_0.2_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth',
-            './logs_gconv/T_4_b_16_c_2_SGD_lr_0.2_CosALR_48_amp_cupy/vthr_list.npy')
+             './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth',
+             './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/vthr_list.npy')
         # 计数器（每4个frame(shape=(346, 260))形成一个frames(shape=(4, 2, 346, 260))
         self.frame_counter = 0
         # 积分好的帧（shape=(4, 2, 346, 260)）

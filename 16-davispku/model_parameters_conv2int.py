@@ -56,21 +56,21 @@ def maxium_multply_model(model, layer_name_list: list, sj_vthr: float = 1.0):
 
 def main():
     # 加载原始权重文件
-    checkpoint_path = './logs_t1e4_gconv/T_4_b_16_c_2_SGD_lr_0.2_CosALR_48_amp_cupy/checkpoint_max_bn2conv.pth'
+    checkpoint_path = './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_bn2conv.pth'
     checkpoint = torch.load(checkpoint_path, map_location='cpu')
     
     # 将所有参数乘以MULT后取整
     multiplied_checkpoint = checkpoint.copy()
-    layer_name_list = ['conv.0', 'conv.2', 'conv.4', 'fc.2', 'fc.5', 'fc.8']
+    layer_name_list = ['conv.0', 'conv.2', 'fc.2', 'fc.5', 'fc.8']
     multiplied_checkpoint['net'], vthr_list = maxium_multply_model(checkpoint['net'], layer_name_list, sj_vthr=1.0)
 
     # 保存新的权重文件
-    multiplied_checkpoint_path = './logs_t1e4_gconv/T_4_b_16_c_2_SGD_lr_0.2_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth'
+    multiplied_checkpoint_path = './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth'
     torch.save(multiplied_checkpoint, multiplied_checkpoint_path)
     print("所有参数乘并转int8完成，新权重文件保存为 " + multiplied_checkpoint_path)
 
     # 保存vthr_list
-    vthr_list_path = './logs_t1e4_gconv/T_4_b_16_c_2_SGD_lr_0.2_CosALR_48_amp_cupy/vthr_list.npy'
+    vthr_list_path = './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/vthr_list.npy'
     np.save(vthr_list_path, vthr_list)
     print("转换完成的int8网络 vthr_list 保存路径为 " + vthr_list_path)
 

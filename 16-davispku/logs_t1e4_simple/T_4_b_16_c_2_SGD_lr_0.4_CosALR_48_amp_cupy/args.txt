@@ -1,0 +1,1 @@
+Namespace(T=4, T_max=48, amp=True, b=16, channels=2, cupy=True, data_dir='./duration_1000', device='cuda:0', epochs=48, gamma=0.1, j=4, lr=0.4, lr_scheduler='CosALR', momentum=0.9, opt='SGD', out_dir='./logs_simple', resume=None, step_size=32)
