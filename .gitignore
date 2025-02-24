@@ -31,6 +31,10 @@
 16-davispku/old/**
 16-davispku/old/.*
 
+# exclude 仿真输入输出示例
+16-davispku/仿真输入输出示例
+16-davispku/仿真输入输出示例/**
+16-davispku/仿真输入输出示例/.*
 
 # exclude binary file folder named 'debug', 'bin'
 */debug

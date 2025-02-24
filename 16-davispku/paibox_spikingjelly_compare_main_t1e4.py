@@ -22,6 +22,7 @@ vthr_list = np.load('./logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cu
 SIM_TIMESTEP = 4 # <=16
 COMPILE_EN = False
 
+
 # Dataloader
 # 设置训练集和测试集的目录
 test_dir = './duration_1000/test'
@@ -30,84 +31,52 @@ test_data_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_wor
 print(len(test_data_loader))
 
 # PAIBox网络定义
-class Conv2d_Net(pb.Network):
-    def __init__(self, channels, param_dict):
-        super().__init__()
-
-        def fakeout_with_t(t, **kwargs): # ignore other arguments except `t` & `bias`
-            if t-1 < SIM_TIMESTEP:
-                print(f't = {t}, input = image[{t-1}]')
-                return image_69[t-1]
-            else:
-                print(f't = {t}, input = image[-1]')
-                return image_69[-1]
-
-        self.i0 = pb.InputProj(input=fakeout_with_t, shape_out=(1, 86, 65))
-        self.n0 = pb.LIF((1, 42, 32), bias=param_dict['conv.0.bias'], threshold=param_dict['conv.0.vthr'], reset_v=0, tick_wait_start=1) # convpool7x7p2s2
-        self.conv2d_0 = pb.Conv2d(self.i0, self.n0, kernel=param_dict['conv.0.weight'], padding=2, stride=2)
-
-        self.n1 = pb.LIF((2, 21, 16), bias=param_dict['conv.2.bias'], threshold=param_dict['conv.2.vthr'], reset_v=0, tick_wait_start=2) # convpool7x7p3s2
-        self.conv2d_1_0 = pb.Conv2d(self.n0, self.n1, kernel=param_dict['conv.2.weight'], padding=3, stride=2)
-
-        self.n10 = pb.LIF(512, threshold=param_dict['fc.2.vthr'], reset_v=0, tick_wait_start=3) # fc
-        self.fc_0 = pb.FullConn(self.n1, self.n10, conn_type=pb.SynConnType.All2All, weights=param_dict['fc.2.weight'])
-
-        self.n11 = pb.LIF(128, threshold=param_dict['fc.5.vthr'], reset_v=0, tick_wait_start=4) # fc
-        self.fc_1 = pb.FullConn(self.n10, self.n11, conn_type=pb.SynConnType.All2All, weights=param_dict['fc.5.weight'])
-
-        self.n12 = pb.LIF(90, threshold=param_dict['fc.8.vthr'], reset_v=0, tick_wait_start=5) # fc
-        self.fc_2 = pb.FullConn(self.n11, self.n12, conn_type=pb.SynConnType.All2All, weights=param_dict['fc.8.weight'])
-
-        self.probe1 = pb.Probe(self.n12, "spike")
-
-
-# PAIBox网络初始化
-param_dict = {}
-def getNetParam():
-    timestep = SIM_TIMESTEP
-    layer_num = 5
-    delay = layer_num - 1
-    param_dict["timestep"] = timestep
-    param_dict["layer_num"] = layer_num
-    param_dict["delay"] = delay
-
-    checkpoint = torch.load('./logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth', map_location='cpu', weights_only=True)
-    param_dict['conv.0.weight']=checkpoint['net']['conv.0.weight'].numpy().astype(np.int8)
-    param_dict['conv.0.bias']=checkpoint['net']['conv.0.bias'].numpy().astype(np.int8)
-    param_dict['conv.2.weight']=checkpoint['net']['conv.2.weight'].numpy().astype(np.int8)
-    param_dict['conv.2.bias']=checkpoint['net']['conv.2.bias'].numpy().astype(np.int8)
-    param_dict['fc.2.weight']=checkpoint['net']['fc.2.weight'].numpy().astype(np.int8).T
-    param_dict['fc.5.weight']=checkpoint['net']['fc.5.weight'].numpy().astype(np.int8).T
-    param_dict['fc.8.weight']=checkpoint['net']['fc.8.weight'].numpy().astype(np.int8).T
-    param_dict['conv.0.vthr']=int(vthr_list[0])
-    param_dict['conv.2.vthr']=int(vthr_list[1])
-    param_dict['fc.2.vthr']=int(vthr_list[2])
-    param_dict['fc.5.vthr']=int(vthr_list[3])
-    param_dict['fc.8.vthr']=int(vthr_list[4])
-getNetParam()
-
-# PAIBox仿真器
-pb_net = Conv2d_Net(2, param_dict)
-sim = pb.Simulator(pb_net)
-
+from simple_pb_infer import PAIBoxNet
+paiboxnet = PAIBoxNet(2, SIM_TIMESTEP,
+     './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth',
+     './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/vthr_list.npy')
 # PAIBox推理子程序
 def pb_inference(image):
     # PAIBox推理
+    spike_sum_pb, pred_pb = paiboxnet.pb_inference(image)
+    return spike_sum_pb, pred_pb
 
-    # Simulation, duration=timestep + delay
-    sim.run(param_dict["timestep"] + param_dict["delay"], reset=False)
+# PAIBoard网络定义
+from paiboard import PAIBoard_SIM
+from paiboard import PAIBoard_PCIe
+from paiboard import PAIBoard_Ethernet
+timestep = 4
+layer_num = 4
+baseDir = "./debug"
+snn = PAIBoard_SIM(baseDir, timestep, layer_num=layer_num)
+# snn = PAIBoard_PCIe(baseDir, timestep, layer_num=layer_num)
+# snn = PAIBoard_Ethernet(baseDir, timestep, layer_num=layer_num)
+snn.chip_init([(1, 0), (0, 0), (1, 1), (0, 1)])
+snn.config(oFrmNum=90*4)
 
-    # Decode the output
-    spike_out = sim.data[pb_net.probe1].astype(np.int32)
-    spike_out = spike_out[param_dict["delay"] :]
-    original_spike_out = spike_out.copy()
+# PAIBoard推理子程序
+def board_inference(image):
+    # 数据预处理：将image的形状从[2, 346, 260]用maxpool2d池化为[2, 86, 65]
+    maxpool2d = torch.nn.MaxPool2d(kernel_size=4, stride=4)
+    if type(image) == np.ndarray:
+        image = image.astype(np.int8)
+        image = torch.from_numpy(image) # numpy -> tensor
+    elif type(image) == torch.Tensor:
+        pass
+    else:
+        raise TypeError("image must be np.ndarray or torch.Tensor")
+    image = maxpool2d(image)
+    image = image.numpy().astype(np.uint8) # tensor -> numpy
+
+    # PAIBoard 推理
+    input_spike = np.expand_dims(image[0], axis=0).repeat(timestep, axis=0)
+    spike_out = snn(input_spike)
     spike_out = voting(spike_out, 10)
-    spike_sum_pb = spike_out.sum(axis=0)
-    pred_pb = np.argmax(spike_sum_pb)
-    print("Predicted number:", pred_pb)
+    spike_sum_board = spike_out.sum(axis=0)
+    pred_board = np.argmax(spike_sum_board)
+    print("Predicted number:", pred_board)
 
-    sim.reset()
-    return spike_sum_pb, pred_pb, original_spike_out
+    return spike_sum_board, pred_board
 
 # SpikingJelly网络定义和初始化
 vthr_list_tofloat = [float(vthr) for vthr in vthr_list]
@@ -131,13 +100,14 @@ def sj_inference(image):
 # 测试程序
 def test(test_num: int = 100):
     # 结果csv初始化
-    with open('paibox_spikingjelly_compare_main_t1e4_result.csv', 'w', newline='') as file:
+    with open('paibox_spikingjelly_compare_main_t1e4_result1.csv', 'w', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(["index", "label", "pb_spike_sum", "pb_pred", "pb_correct", "sj_spike_sum", "sj_pred", "sj_correct"])
+        writer.writerow(["index", "label", "pb_spike_sum", "pb_pred", "pb_correct", "sj_spike_sum", "sj_pred", "sj_correct", "board_spike_sum", "board_pred", "board_correct"])
 
     # 测试主程序
     test_acc_pb = 0
     test_acc_sj = 0
+    test_acc_board = 0
     test_samples = 0
     for i, (image_tensor, label_tensor) in enumerate(test_data_loader):
         if i == test_num:
@@ -157,27 +127,26 @@ def test(test_num: int = 100):
         # 修改数据，将大于等于1的像素值设为1，否则为0
         image = np.where(image == 0, 0, 1)
 
-        # 对于新的PAIBox网络，需要预先将image的形状从[2, 346, 260]用maxpool2d池化为[2, 86, 65]
-        global image_69
-        image_69 = image_tensor[0]
-        maxpool2d = torch.nn.MaxPool2d(kernel_size=4, stride=4)
-        image_69 = maxpool2d(image_69)
-        image_69 = image_69.squeeze()  # 去掉批次维度
-        image_69 = image_69.numpy()  # 转换为 numpy 数组
-        image_69 = image_69.astype(np.uint8)  # 转换为 uint8
-
         test_samples += 1
 
         # PAIBox推理
-        spike_sum_pb, pred_pb, original_spike_out = pb_inference(image_69)
+        spike_sum_pb, pred_pb = pb_inference(image)
         # 在推理时保存图片到/image文件夹下，文件名为{i}.npy
-        np.save(f"仿真输入输出示例/image/label_{label}_iter_{i}_image.npy", image_69[0])
-        np.save(f"仿真输入输出示例/spike_out/label_{label}_iter_{i}_spike_out.npy", original_spike_out)
+        # np.save(f"仿真输入输出示例/image/label_{label}_iter_{i}_image.npy", image_69[0])
+        # np.save(f"仿真输入输出示例/spike_out/label_{label}_iter_{i}_spike_out.npy", original_spike_out)
         test_acc_pb += (pred_pb == label)
         if pred_pb != label:
             print("pb: failed")
         else:
             print("pb: success")
+
+        # PAIBoard推理
+        spike_sum_board, pred_board = board_inference(image)
+        test_acc_board += (pred_board == label)
+        if pred_board != label:
+            print("board: failed")
+        else:
+            print("board: success")
 
         # SpikingJelly推理
         spike_sum_sj, pred_sj = sj_inference(image)
@@ -188,23 +157,24 @@ def test(test_num: int = 100):
             print("sj: success")
 
         # 将结果写入csv
-        with open('paibox_spikingjelly_compare_main_t1e4_result.csv', 'a', newline='') as file:
+        with open('paibox_spikingjelly_compare_main_t1e4_result1.csv', 'a', newline='') as file:
             writer = csv.writer(file)
-            writer.writerow([i, label, spike_sum_pb, pred_pb, (pred_pb == label), spike_sum_sj, pred_sj, (pred_sj == label)])
+            writer.writerow([i, label, spike_sum_pb, pred_pb, (pred_pb == label), spike_sum_sj, pred_sj, (pred_sj == label), spike_sum_board, pred_board, (pred_board == label)])
 
     test_acc_pb = test_acc_pb / test_samples
     test_acc_sj = test_acc_sj / test_samples
+    test_acc_board = test_acc_board / test_samples
     print(f'test_acc_pb ={test_acc_pb: .4f}')
     print(f'test_acc_sj ={test_acc_sj: .4f}')
+    print(f'test_acc_board ={test_acc_board: .4f}')
 
 if __name__ == "__main__":
-    getNetParam()
     test(test_num=1000000)
 
     if COMPILE_EN:
         mapper = pb.Mapper()
 
-        mapper.build(pb_net)
+        mapper.build(paiboxnet.pb_net)
 
         graph_info = mapper.compile(
             weight_bit_optimization=True, grouping_optim_target="both"
