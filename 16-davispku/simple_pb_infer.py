@@ -48,11 +48,11 @@ class Conv2d_Net(pb.Network):
     def fakeout_with_t(self, t, **kwargs): # ignore other arguments except `t` & `bias`
         # 如果t-1小于self.sim_timestep，则打印t和image[t-1]，并返回image[t-1]
         if t-1 < self.sim_timestep:
-            print(f't = {t}, input = image[{t-1}]')
+            # print(f't = {t}, input = image[{t-1}]')
             return self.image_69[t-1]
         # 否则，打印t和image[-1]，并返回image[-1]
         else:
-            print(f't = {t}, input = image[-1]')
+            # print(f't = {t}, input = image[-1]')
             return self.image_69[-1]
 
 class PAIBoxNet:
@@ -96,7 +96,7 @@ class PAIBoxNet:
         输入: np.ndarray or torch.Tensor , shape=[2, 346, 260]
         输出: spike_sum_pb, pred_pb
         """
-        print(image.shape)
+        # print(image.shape)
         # 数据预处理：将image的形状从[2, 346, 260]用maxpool2d池化为[2, 86, 65]
         maxpool2d = torch.nn.MaxPool2d(kernel_size=4, stride=4)
         if type(image) == np.ndarray:
@@ -123,7 +123,7 @@ class PAIBoxNet:
         spike_out = voting(spike_out, 10) # 投票层
         spike_sum_pb = spike_out.sum(axis=0)
         pred_pb = np.argmax(spike_sum_pb)
-        print("Predicted number:", pred_pb)
+        # print("Predicted number:", pred_pb)
 
         self.sim.reset()
         return spike_sum_pb, pred_pb
