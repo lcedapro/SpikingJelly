@@ -1,12 +1,18 @@
-import multiprocessing
+import __init__
 from multiprocessing import Process, Queue, Event
+import os
+if os.name == 'nt': # Windows
+    import keyboard
+elif os.name == 'posix': # Linux or MacOS
+    import signal
+else:
+    raise Exception("Unsupported OS")
 import time
 import numpy as np
-import keyboard
 
 # 假设 events_process 和 PAIBoardProcessor 已经定义在其他模块中
 # 如果它们在同一个文件中，可以直接使用
-from use_of_the_event_stream_slicer_reader_process_cv2 import events_process
+from events_process import events_process
 from paiboard_process import paiboard_process
 from paiboxnet_process import paiboxnet_process
 LETTER_LIST = ['D', 'A', 'V', 'I', 'S', 'P', 'K', 'U', 'others']
@@ -21,7 +27,16 @@ if __name__ == "__main__":
             stop_event1.set()
             stop_event2.set()
             print('You pressed the Q key, exiting...')
-    keyboard.on_press(on_press_callback)
+    def signal_handler(signal, frame):
+        stop_event1.set()
+        stop_event2.set()
+    if os.name == 'nt': # Windows
+        keyboard.on_press(on_press_callback)
+    elif os.name == 'posix': # Linux or MacOS
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+    else:
+        raise Exception("Unsupported OS")
 
     # 定义队列
     input_queue = Queue(maxsize=1)  # events_process 的输出队列

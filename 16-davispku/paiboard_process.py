@@ -1,5 +1,12 @@
+import __init__
 from multiprocessing import Process, Event, Queue
-import keyboard
+import os
+if os.name == 'nt': # Windows
+    import keyboard
+elif os.name == 'posix': # Linux or MacOS
+    import signal
+else:
+    raise Exception("Unsupported OS")
 import time
 import numpy as np
 
@@ -53,7 +60,7 @@ def paiboard_process(input_queue, output_queue, stop_event, baseDir):
     snn = PAIBoard_SIM(baseDir, timestep, layer_num=layer_num)
     # snn = PAIBoard_PCIe(baseDir, timestep, layer_num=layer_num)
     # snn = PAIBoard_Ethernet(baseDir, timestep, layer_num=layer_num)
-    snn.chip_init([(1, 0), (0, 0), (1, 1), (0, 1)])
+    # snn.chip_init([(1, 0), (0, 0), (1, 1), (0, 1)])
     snn.config(oFrmNum=90 * 4)
 
     while True:
@@ -103,10 +110,18 @@ if __name__ == "__main__":
     def on_press_callback(event):
         if event.name == 'a':
             print('You pressed the A key')
-        if event.name == 'esc':
+        if event.name == 'q':
             stop_event.set()
-            print('You pressed the ESC key, exiting...')
-    keyboard.on_press(on_press_callback)
+            print('You pressed the Q key, exiting...')
+    def signal_handler(signal, frame):
+        stop_event.set()
+    if os.name == 'nt': # Windows
+        keyboard.on_press(on_press_callback)
+    elif os.name == 'posix': # Linux or MacOS
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+    else:
+        raise Exception("Unsupported OS")
 
     baseDir = "./debug"
     input_queue = Queue(maxsize=20)

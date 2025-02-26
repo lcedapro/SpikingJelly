@@ -1,5 +1,11 @@
 from multiprocessing import Process, Event, Queue
-import keyboard
+import os
+if os.name == 'nt': # Windows
+    import keyboard
+elif os.name == 'posix': # Linux or MacOS
+    import signal
+else:
+    raise Exception("Unsupported OS")
 import time
 import numpy as np
 
@@ -86,13 +92,21 @@ if __name__ == "__main__":
     def on_press_callback(event):
         if event.name == 'a':
             print('You pressed the A key')
-        if event.name == 'esc':
+        if event.name == 'q':
             stop_event.set()
-            print('You pressed the ESC key, exiting...')
-    keyboard.on_press(on_press_callback)
+            print('You pressed the Q key, exiting...')
+    def signal_handler(signal, frame):
+        stop_event.set()
+    if os.name == 'nt': # Windows
+        keyboard.on_press(on_press_callback)
+    elif os.name == 'posix': # Linux or MacOS
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+    else:
+        raise Exception("Unsupported OS")
 
-    IS_CAMERA = False
-    FRAME_DELAY = 1
+    IS_CAMERA = True
+    FRAME_DELAY = 33
     FILE_PATH = "D:/DV/test/dvSave-2024_09_03_16_05_45.aedat4"
     TIME_SLEEP = 0.01
 
