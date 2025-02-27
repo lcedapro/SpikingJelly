@@ -14,7 +14,7 @@ import numpy as np
 # 如果它们在同一个文件中，可以直接使用
 from events_process import events_process
 from paiboard_process import paiboard_process
-from paiboxnet_process import paiboxnet_process
+# from paiboxnet_process import paiboxnet_process
 LETTER_LIST = ['D', 'A', 'V', 'I', 'S', 'P', 'K', 'U', 'others']
 
 if __name__ == "__main__":
@@ -39,12 +39,12 @@ if __name__ == "__main__":
         raise Exception("Unsupported OS")
 
     # 定义队列
-    input_queue = Queue(maxsize=1)  # events_process 的输出队列
+    input_queue = Queue(maxsize=2)  # events_process 的输出队列
     output_queue = Queue(maxsize=50)  # PAIBoardProcessor 的输出队列
 
     # 定义全局变量
     IS_CAMERA = True
-    FRAME_DELAY = 33
+    FRAME_DELAY = 6
     FILE_PATH = "D:\\DV\\SPKU\\7_1.aedat4"
     TIME_SLEEP = 0
     baseDir = "./debug"
@@ -54,8 +54,8 @@ if __name__ == "__main__":
     events_process_p.start()
 
     # 创建 PAIBoard 处理进程
-    # paiboard_process_p = Process(target=paiboard_process, args=(input_queue, output_queue, stop_event2, baseDir))
-    paiboard_process_p = Process(target=paiboxnet_process, args=(input_queue, output_queue, stop_event2))
+    paiboard_process_p = Process(target=paiboard_process, args=(input_queue, output_queue, stop_event2, baseDir))
+    # paiboard_process_p = Process(target=paiboxnet_process, args=(input_queue, output_queue, stop_event2))
     paiboard_process_p.start()
 
     while events_process_p.is_alive() or paiboard_process_p.is_alive():
@@ -64,18 +64,19 @@ if __name__ == "__main__":
         # 检查 PAIBoardProcessor 的输出队列
         if not output_queue.empty():
             spike_sum_board, pred_board = output_queue.get()
-            print("Received PAIBoard output:")
-            print(f"Spike sum board:{spike_sum_board}\tPredicted board:{pred_board}\tPredicted letter:{LETTER_LIST[pred_board]}")
+            print("Main Process: Received PAIBoard output:")
+            print(f"Main Process: Spike sum board:{spike_sum_board}\tPredicted board:{pred_board}\tPredicted letter:{LETTER_LIST[pred_board]}")
         # if input_queue.full():
             # test_data = input_queue.get()
             # print("Received test data:", test_data)
 
-            time.sleep(0.01)
+            time.sleep(0.001)
         else:
+            print("Main Process: Output Queue is empty, waiting...")
             time.sleep(0.1)
     
     # 等待进程结束
-    print("Waiting for processes to finish...")
+    print("Main Process: Waiting for processes to finish...")
     events_process_p.join()
     paiboard_process_p.join()
 

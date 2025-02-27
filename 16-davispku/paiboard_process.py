@@ -24,18 +24,28 @@ def integrate_events_to_one_frame_1bit_optimized_numpy(events: np.ndarray):
         events (np.ndarray): Array containing event data. shape: [[x, y, polarity], ...]
 
     Returns:
-        frame (np.ndarray): Integrated frame as a numpy array with shape [1, 2, 346, 260].
+        frame (np.ndarray): Integrated frame as a numpy array with shape [2, 86, 65]. (maxpool2d, stride=4)
     """
     if len(events) == 0:
-        return np.zeros((2, 346, 260), dtype=np.uint8)
+        return np.zeros((2, 86, 65), dtype=np.uint8)
 
     # Initialize an empty frame with shape [1, 2, x_max, y_max]
-    frame = np.zeros((2, 346, 260), dtype=np.uint8)
+    frame = np.zeros((2, 86, 65), dtype=np.uint8)
 
     # Extract the x, y, and polarity columns as NumPy arrays
-    x = events[:, 0]
-    y = events[:, 1]
-    polarity = events[:, 2]
+    x = events[['x']]
+    y = events[['y']]
+    polarity = events[['polarity']]
+
+    x = np.array(x, dtype=np.int16)
+    y = np.array(y, dtype=np.int16)
+    polarity = np.array(polarity, dtype=np.int8)
+
+    # maxpool2d, stride=4
+    x = x // 4
+    x = np.where(x > 85, 85, x)
+    y = y // 4
+    y = np.where(y > 64, 64, y)
 
     # Use NumPy's advanced indexing to set the frame values
     frame[polarity, x, y] = 1
@@ -57,9 +67,16 @@ def paiboard_process(input_queue, output_queue, stop_event, baseDir):
     layer_num = 4
 
     # 初始化PAIBoard
-    snn = PAIBoard_SIM(baseDir, timestep, layer_num=layer_num)
-    # snn = PAIBoard_PCIe(baseDir, timestep, layer_num=layer_num)
-    # snn = PAIBoard_Ethernet(baseDir, timestep, layer_num=layer_num)
+    if os.name == 'nt': # Windows
+        snn = PAIBoard_SIM(baseDir, timestep, layer_num=layer_num)
+        # snn = PAIBoard_PCIe(baseDir, timestep, layer_num=layer_num)
+        # snn = PAIBoard_Ethernet(baseDir, timestep, layer_num=layer_num)
+    elif os.name == 'posix': # Linux or MacOS
+        # snn = PAIBoard_SIM(baseDir, timestep, layer_num=layer_num)
+        snn = PAIBoard_PCIe(baseDir, timestep, layer_num=layer_num)
+        # snn = PAIBoard_Ethernet(baseDir, timestep, layer_num=layer_num)
+    else:
+        raise Exception("Unsupported OS")
     # snn.chip_init([(1, 0), (0, 0), (1, 1), (0, 1)])
     snn.config(oFrmNum=90 * 4)
 
@@ -70,20 +87,31 @@ def paiboard_process(input_queue, output_queue, stop_event, baseDir):
 
         # 检查输入队列是否为空
         if not input_queue.empty():
-            print("Input queue is not empty, start processing")
+            print("PAIBoard Process: Input queue is not empty, start processing")
             # 从输入队列获取数据
             events = input_queue.get()
             
+            tim1 = time.perf_counter()
             # image = input_queue.get()
             # print(events.shape) # (3500, 3)
             image = integrate_events_to_one_frame_1bit_optimized_numpy(events)
+
+            # tim2 = time.perf_counter()
+            # print(f"PAIBoard Process: integrate_events_to_one_frame_1bit_optimized_numpy time: {(tim2 - tim1)*1000} ms", )
+            # tim1 = time.perf_counter()
+
             # print(image.shape) # (2, 346, 260)
             image = image[0]
             # print(image.shape) # (346, 260)
-            image = numpy_maxpool2d(image, 4, 4)
+            # image = maxpool2ds4(image)
             # print(image.shape) # (86, 65)
 
+            # tim2 = time.perf_counter()
+            # print(f"PAIBoard Process: numpy_maxpool2d time: {(tim2 - tim1)*1000} ms", )
+            # tim1 = time.perf_counter()
 
+            tim2 = time.perf_counter()
+            print(f"PAIBoard preprocess time: {(tim2 - tim1)*1000} ms", )
             tim1 = time.perf_counter()
 
             # PAIBoard 推理
@@ -94,15 +122,13 @@ def paiboard_process(input_queue, output_queue, stop_event, baseDir):
             pred_board = np.argmax(spike_sum_board)
 
             tim2 = time.perf_counter()
-            print("PAIBoard inference time: ", tim2 - tim1)
-            print("spike_sum_board: ", spike_sum_board)
-            print("pred_board: ", pred_board)
+            print(f"PAIBoard Process: PAIBoard inference time: {(tim2 - tim1)*1000} ms", )
 
             # 将结果放入输出队列
             output_queue.put((spike_sum_board, pred_board))
         else:
-            print("Input queue is empty, waiting...")
-            time.sleep(0.1)
+            print("PAIBoard Process: Input queue is empty, waiting...")
+            time.sleep(0.001)
 
 # 示例用法
 if __name__ == "__main__":

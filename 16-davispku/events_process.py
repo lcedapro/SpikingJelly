@@ -43,7 +43,7 @@ def events_process(queue, stop_event, is_camera, frame_delay, file_path, time_sl
 
 
         # If escape button is pressed (code 27 is escape key), exit the program cleanly
-        if cv.waitKey(2) == 27:
+        if cv.waitKey(1) == 27:
             exit(0)
 
         # Convert events to numpy array
@@ -55,10 +55,11 @@ def events_process(queue, stop_event, is_camera, frame_delay, file_path, time_sl
             return
 
         # Extract (x, y, polarity) from events
-        events_numpy_x_y_polarity = np.array([(event[1], event[2], event[3]) for event in events_numpy]) # memory_ratio = 0.375
+        # events_numpy_x_y_polarity = np.array([(event[1], event[2], event[3]) for event in events_numpy]) # memory_ratio = 0.375
+        events_numpy_x_y_polarity = events_numpy[['x', 'y', 'polarity']]
 
         # Extract the first timestamp
-        events_numpy_first_timestamp = events_numpy[0][0]
+        # events_numpy_first_timestamp = events_numpy[0][0]
 
         # Check if the queue is full
         if queue.full():
@@ -108,7 +109,7 @@ if __name__ == "__main__":
     IS_CAMERA = True
     FRAME_DELAY = 33
     FILE_PATH = "D:/DV/test/dvSave-2024_09_03_16_05_45.aedat4"
-    TIME_SLEEP = 0.01
+    TIME_SLEEP = 0
 
     queue = Queue(maxsize=10)  # Set the maximum size of the queue
 
@@ -122,10 +123,10 @@ if __name__ == "__main__":
         try:
             if not queue.empty():
                 data = queue.get(timeout=1)
-                events_numpy_x_y_polarity, events_numpy_first_timestamp = data
-                print("Received data:", len(events_numpy_x_y_polarity), events_numpy_first_timestamp)
-            else:
-                print("Queue is empty.")
+                events_numpy_x_y_polarity = data
+                print("Received events_numpy_x_y_polarity len:", len(events_numpy_x_y_polarity))
+            # else:
+                # print("Queue is empty.")
         except:
             pass
 
