@@ -13,23 +13,27 @@ import numpy as np
 # 假设 events_process 和 PAIBoardProcessor 已经定义在其他模块中
 # 如果它们在同一个文件中，可以直接使用
 from events_process import events_process
-from paiboard_process import paiboard_process
-# from paiboxnet_process import paiboxnet_process
+# from paiboard_process import paiboard_process
+from paiboxnet_process import paiboxnet_process
+from opencv_process import opencv_process
 LETTER_LIST = ['D', 'A', 'V', 'I', 'S', 'P', 'K', 'U', 'others']
 
 if __name__ == "__main__":
     stop_event1 = Event()
     stop_event2 = Event()
+    stop_event3 = Event()
     def on_press_callback(event):
         if event.name == 'a':
             print('You pressed the A key')
         if event.name == 'q':
             stop_event1.set()
             stop_event2.set()
+            stop_event3.set()
             print('You pressed the Q key, exiting...')
     def signal_handler(signal, frame):
         stop_event1.set()
         stop_event2.set()
+        stop_event3.set()
     if os.name == 'nt': # Windows
         keyboard.on_press(on_press_callback)
     elif os.name == 'posix': # Linux or MacOS
@@ -43,40 +47,48 @@ if __name__ == "__main__":
     output_queue = Queue(maxsize=50)  # PAIBoardProcessor 的输出队列
 
     # 定义全局变量
-    IS_CAMERA = True
-    FRAME_DELAY = 6
+    IS_CAMERA = False
+    FRAME_DELAY = 1
     FILE_PATH = "D:\\DV\\SPKU\\7_1.aedat4"
-    TIME_SLEEP = 0
+    TIME_SLEEP = 0.1
     baseDir = "./debug"
 
     # 创建事件处理进程
     events_process_p = Process(target=events_process, args=(input_queue, stop_event1, IS_CAMERA, FRAME_DELAY, FILE_PATH, TIME_SLEEP))
     events_process_p.start()
 
+    # 创建 OpenCV 处理进程
+    opencv_process_p = Process(target=opencv_process, args=(output_queue, stop_event3, 2))
+    opencv_process_p.start()
+
     # 创建 PAIBoard 处理进程
-    paiboard_process_p = Process(target=paiboard_process, args=(input_queue, output_queue, stop_event2, baseDir))
-    # paiboard_process_p = Process(target=paiboxnet_process, args=(input_queue, output_queue, stop_event2))
+    # paiboard_process_p = Process(target=paiboard_process, args=(input_queue, output_queue, stop_event2, baseDir))
+    paiboard_process_p = Process(target=paiboxnet_process, args=(input_queue, output_queue, stop_event2))
     paiboard_process_p.start()
 
-    while events_process_p.is_alive() or paiboard_process_p.is_alive():
+    while events_process_p.is_alive() or opencv_process_p.is_alive() or paiboard_process_p.is_alive():
         # print("events_process_p is_alive: ",events_process_p.is_alive())
         # print("paiboard_process_p is_alive: ",paiboard_process_p.is_alive())
         # 检查 PAIBoardProcessor 的输出队列
         if not output_queue.empty():
-            spike_sum_board, pred_board = output_queue.get()
-            print("Main Process: Received PAIBoard output:")
-            print(f"Main Process: Spike sum board:{spike_sum_board}\tPredicted board:{pred_board}\tPredicted letter:{LETTER_LIST[pred_board]}")
-        # if input_queue.full():
+        #     spike_sum_board, pred_board = output_queue.get()
+        #     print("Main Process: Received PAIBoard output:")
+        #     print(f"Main Process: Spike sum board:{spike_sum_board}\tPredicted board:{pred_board}\tPredicted letter:{LETTER_LIST[pred_board]}")
+        # # if input_queue.full():
             # test_data = input_queue.get()
             # print("Received test data:", test_data)
 
             time.sleep(0.001)
         else:
-            print("Main Process: Output Queue is empty, waiting...")
+            # print("Main Process: Output Queue is empty, waiting...")
             time.sleep(0.1)
-    
+        if stop_event1.is_set() or stop_event2.is_set() or stop_event3.is_set():
+            time.sleep(0.5)
+            break
+
     # 等待进程结束
     print("Main Process: Waiting for processes to finish...")
     events_process_p.join()
+    opencv_process_p.join()
     paiboard_process_p.join()
 

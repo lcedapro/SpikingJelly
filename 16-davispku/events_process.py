@@ -10,7 +10,7 @@ import time
 import numpy as np
 
 import dv_processing as dv
-import cv2 as cv
+# import cv2 as cv
 from datetime import timedelta
 
 def events_process(queue, stop_event, is_camera, frame_delay, file_path, time_sleep):
@@ -30,8 +30,8 @@ def events_process(queue, stop_event, is_camera, frame_delay, file_path, time_sl
                                                   dv.visualization.colors.red())
 
     # Create a window for image display
-    cv.namedWindow("Preview", cv.WINDOW_NORMAL)
-    cv.resizeWindow("Preview", 800, 600)
+    # cv.namedWindow("Preview", cv.WINDOW_NORMAL)
+    # cv.resizeWindow("Preview", 800, 600)
 
     # Flag to indicate if the queue is full
     queue_full_flag = False
@@ -39,12 +39,12 @@ def events_process(queue, stop_event, is_camera, frame_delay, file_path, time_sl
     # Callback method for time based slicing
     def display_preview(events):
         # Generate a preview and show the final image (if frame_time_counter == 0)
-        cv.imshow("Preview", visualizer.generateImage(events))
+        # cv.imshow("Preview", visualizer.generateImage(events))
 
 
         # If escape button is pressed (code 27 is escape key), exit the program cleanly
-        if cv.waitKey(1) == 27:
-            exit(0)
+        # if cv.waitKey(1) == 27:
+        #     exit(0)
 
         # Convert events to numpy array
         events_numpy = events.numpy()
@@ -85,7 +85,7 @@ def events_process(queue, stop_event, is_camera, frame_delay, file_path, time_sl
             slicer.accept(events)
         time.sleep(time_sleep)
 
-    cv.destroyAllWindows()
+    # cv.destroyAllWindows()
 
 # Example usage
 if __name__ == "__main__":
@@ -108,7 +108,7 @@ if __name__ == "__main__":
 
     IS_CAMERA = False
     FRAME_DELAY = 33
-    FILE_PATH = "mono_writer_sample.aedat4"
+    FILE_PATH = "D:/DV/test/dvSave-2024_09_03_16_05_45.aedat4"
     TIME_SLEEP = 0
 
     queue = Queue(maxsize=10)  # Set the maximum size of the queue

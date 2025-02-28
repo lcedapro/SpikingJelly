@@ -22,9 +22,13 @@ def integrate_events_to_one_frame_1bit_optimized_numpy(events: np.ndarray):
     frame = np.zeros((2, 346, 260), dtype=np.uint8)
 
     # Extract the x, y, and polarity columns as NumPy arrays
-    x = events[:, 0]
-    y = events[:, 1]
-    polarity = events[:, 2]
+    x = events[['x']]
+    y = events[['y']]
+    polarity = events[['polarity']]
+
+    x = np.array(x, dtype=np.int16)
+    y = np.array(y, dtype=np.int16)
+    polarity = np.array(polarity, dtype=np.int8)
 
     # Use NumPy's advanced indexing to set the frame values
     frame[polarity, x, y] = 1
@@ -61,7 +65,7 @@ def paiboxnet_process(input_queue, output_queue, stop_event):
             spike_sum_pb, pred_pb = paiboxnet.pb_inference(image.repeat(4, axis=0))
 
             # 将结果放入输出队列
-            output_queue.put((spike_sum_pb, pred_pb))
+            output_queue.put((events, spike_sum_pb, pred_pb))
         else:
             # print("Input queue is empty, waiting...")
             time.sleep(0.1)
@@ -90,7 +94,9 @@ if __name__ == "__main__":
         random_x = np.random.randint(0, 346, (3500,), dtype=np.int16)
         random_y = np.random.randint(0, 260, (3500,), dtype=np.int16)
         random_polarity = np.random.randint(0, 2, (3500,), dtype=np.int16)
-        random_input = np.stack([random_x, random_y, random_polarity], axis=1)
+        # 改成结构化数组
+        dtype = [('x', np.int16), ('y', np.int16), ('polarity', np.int8)]
+        random_input = np.array(list(zip(random_x, random_y, random_polarity)), dtype=dtype)
         input_queue.put(random_input)
         time.sleep(1)
 

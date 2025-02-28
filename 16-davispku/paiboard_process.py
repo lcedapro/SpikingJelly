@@ -111,7 +111,7 @@ def paiboard_process(input_queue, output_queue, stop_event, baseDir):
             # tim1 = time.perf_counter()
 
             tim2 = time.perf_counter()
-            print(f"PAIBoard preprocess time: {(tim2 - tim1)*1000} ms", )
+            print(f"PAIBoard Process: PAIBoard preprocess time: {(tim2 - tim1)*1000} ms", )
             tim1 = time.perf_counter()
 
             # PAIBoard 推理
@@ -125,7 +125,7 @@ def paiboard_process(input_queue, output_queue, stop_event, baseDir):
             print(f"PAIBoard Process: PAIBoard inference time: {(tim2 - tim1)*1000} ms", )
 
             # 将结果放入输出队列
-            output_queue.put((spike_sum_board, pred_board))
+            output_queue.put((events, spike_sum_board, pred_board))
         else:
             print("PAIBoard Process: Input queue is empty, waiting...")
             time.sleep(0.001)
