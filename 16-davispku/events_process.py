@@ -106,9 +106,9 @@ if __name__ == "__main__":
     else:
         raise Exception("Unsupported OS")
 
-    IS_CAMERA = True
+    IS_CAMERA = False
     FRAME_DELAY = 33
-    FILE_PATH = "D:/DV/test/dvSave-2024_09_03_16_05_45.aedat4"
+    FILE_PATH = "mono_writer_sample.aedat4"
     TIME_SLEEP = 0
 
     queue = Queue(maxsize=10)  # Set the maximum size of the queue
@@ -130,6 +130,6 @@ if __name__ == "__main__":
         except:
             pass
 
-        time.sleep(0.1)
+        time.sleep(0.01)
 
     p.join()
