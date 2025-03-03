@@ -2,6 +2,7 @@ from multiprocessing import Process, Event, Queue
 import keyboard
 import time
 import numpy as np
+import csv
 
 from simple_pb_infer import PAIBoxNet
 
@@ -38,9 +39,21 @@ def integrate_events_to_one_frame_1bit_optimized_numpy(events: np.ndarray):
 
 def paiboxnet_process(input_queue, output_queue, stop_event):
     """后台处理函数，用于PAIBox推理"""
+    try:
+        # 尝试打开 CSV 文件
+        csv_file =  open("paiboard_process.csv", "w", newline='')
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(["perf_counter_ns", "log_type", "log_info", "events_timestamp"])
+    except Exception as e:
+        print(f"Error in paiboard_process: {e}")
+        exit(1)  # 终止子程序，返回状态码 1 表示异常退出
+
     paiboxnet = PAIBoxNet(2, 4,
          './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth',
          './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/vthr_list.npy')
+
+    tim_total_1 = 0
+    tim_total_2 = 0
 
     while True:
         if stop_event.is_set():
@@ -51,8 +64,10 @@ def paiboxnet_process(input_queue, output_queue, stop_event):
         if not input_queue.empty():
             # print("Input queue is not empty, start processing")
             # 从输入队列获取数据
-            events = input_queue.get()
-            
+            events_timestamp, events = input_queue.get()
+            tim_total_1 = time.perf_counter_ns()
+            csv_writer.writerow([tim_total_1, "PULSE", tim_total_1 - tim_total_2, events_timestamp])
+
             # image = input_queue.get()
             # print(events.shape) # (3500, 3)
             image = integrate_events_to_one_frame_1bit_optimized_numpy(events)
@@ -65,10 +80,18 @@ def paiboxnet_process(input_queue, output_queue, stop_event):
             spike_sum_pb, pred_pb = paiboxnet.pb_inference(image.repeat(4, axis=0))
 
             # 将结果放入输出队列
-            output_queue.put((events, spike_sum_pb, pred_pb))
+            csv_writer.writerow([time.perf_counter_ns(), "LOG", "Processing finished, Start to put result into output queue blocking", events_timestamp])
+            output_queue.put((events_timestamp, events, spike_sum_pb, pred_pb))
+            csv_writer.writerow([time.perf_counter_ns(), "LOG", "Put result into output queue finished", events_timestamp])
+            tim_total_2 = time.perf_counter_ns()
+            csv_writer.writerow([tim_total_2, "TOTAL", tim_total_2 - tim_total_1, events_timestamp])
         else:
             # print("Input queue is empty, waiting...")
+            csv_writer.writerow([time.perf_counter_ns(), "LOG", "Input queue is empty, waiting..."])
             time.sleep(0.1)
+    # close csv file
+    csv_file.close()
+    exit(0)
 
 # 示例用法
 if __name__ == "__main__":

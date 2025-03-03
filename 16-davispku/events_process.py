@@ -8,12 +8,22 @@ else:
     raise Exception("Unsupported OS")
 import time
 import numpy as np
+import csv
 
 import dv_processing as dv
 # import cv2 as cv
 from datetime import timedelta
 
 def events_process(queue, stop_event, is_camera, frame_delay, file_path, time_sleep):
+    try:
+        # 尝试打开 CSV 文件
+        csv_file =  open("events_process.csv", "w", newline='')
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(["perf_counter_ns", "log_type", "log_info", "events_timestamp"])
+    except Exception as e:
+        print(f"Error in events_process: {e}")
+        exit(1)  # 终止子程序，返回状态码 1 表示异常退出
+
     # Open the camera or file
     if is_camera:
         reader = dv.io.CameraCapture("", dv.io.CameraCapture.CameraType.DAVIS)
@@ -37,7 +47,10 @@ def events_process(queue, stop_event, is_camera, frame_delay, file_path, time_sl
     queue_full_flag = False
 
     # Callback method for time based slicing
+    tim_total_1 = 0
+    tim_total_2 = 0
     def display_preview(events):
+        nonlocal tim_total_1, tim_total_2
         # Generate a preview and show the final image (if frame_time_counter == 0)
         # cv.imshow("Preview", visualizer.generateImage(events))
 
@@ -52,8 +65,11 @@ def events_process(queue, stop_event, is_camera, frame_delay, file_path, time_sl
         # Check if events_numpy is empty
         if len(events_numpy) == 0:
             # print("No events received. Skipping processing.")
+            csv_writer.writerow([time.perf_counter_ns(), "LOG", "No events received. Skipping processing.", "None"])
             return
-
+        events_timestamp = events_numpy[0][0]
+        tim_total_1 = time.perf_counter_ns()
+        csv_writer.writerow([tim_total_1, "PULSE", tim_total_1 - tim_total_2, events_timestamp])
         # Extract (x, y, polarity) from events
         # events_numpy_x_y_polarity = np.array([(event[1], event[2], event[3]) for event in events_numpy]) # memory_ratio = 0.375
         events_numpy_x_y_polarity = events_numpy[['x', 'y', 'polarity']]
@@ -65,11 +81,15 @@ def events_process(queue, stop_event, is_camera, frame_delay, file_path, time_sl
         if queue.full():
             queue_full_flag = True
             # print("Queue is full. Stopping event processing.")
+            csv_writer.writerow([time.perf_counter_ns(), "Queue is full. Failed to put processed event data into queue.", events_timestamp])
         else:
             # queue.put((events_numpy_x_y_polarity, events_numpy_first_timestamp))
-            queue.put(events_numpy_x_y_polarity)
+            queue.put((events_timestamp, events_numpy_x_y_polarity))
+            csv_writer.writerow([time.perf_counter_ns(), "Queue is not full. Put processed event data into queue.", events_timestamp])
             queue_full_flag = False
             # print("Queue is not full. Event data added to queue.")
+        tim_total_2 = time.perf_counter_ns()
+        csv_writer.writerow([tim_total_2, "TOTAL", tim_total_2 - tim_total_1, events_timestamp])
 
     # Register a job to be performed every frame_delay milliseconds
     slicer.doEveryTimeInterval(timedelta(milliseconds=frame_delay), display_preview)
@@ -85,6 +105,9 @@ def events_process(queue, stop_event, is_camera, frame_delay, file_path, time_sl
             slicer.accept(events)
         time.sleep(time_sleep)
 
+    # close csv file
+    csv_file.close()
+    exit(0)
     # cv.destroyAllWindows()
 
 # Example usage

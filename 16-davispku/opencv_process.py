@@ -9,9 +9,11 @@ else:
     raise Exception("Unsupported OS")
 import time
 import numpy as np
+import csv
 
 import cv2
-import matplotlib.pyplot as plt
+if os.name == 'posix': # Linux
+    import serial
 LETTER_LIST = ['D', 'A', 'V', 'I', 'S', 'P', 'K', 'U', 'others']
 DISPLAYSCALEFACTOR = 240
 
@@ -45,20 +47,70 @@ def integrate_events_to_one_frame_1bit_optimized_numpy(events: np.ndarray):
 
     return frame
 
-def opencv_process(queue, stop_event, frame_counter_max):
+def opencv_process(queue, stop_event, frame_counter_max):   
+    try:
+        # 尝试打开 CSV 文件
+        csv_file =  open("opencv_process.csv", "w", newline='')
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(["perf_counter_ns", "log_type", "log_info", "events_timestamp"])
+    except Exception as e:
+        print(f"Error in opencv_process: {e}")
+        exit(1)  # 终止子程序，返回状态码 1 表示异常退出
+
+    if os.name == 'posix': # Linux
+        # 打开串口
+        # 串口放在这吧
+        try:
+            #端口，GNU / Linux上的/ dev / ttyUSB0 等 或 Windows上的 COM3 等
+            portx="/dev/ttyUSB1"
+            #波特率，标准值之一：50,75,110,134,150,200,300,600,1200,1800,2400,4800,9600,19200,38400,57600,115200
+            bps=115200
+            #超时设置,None：永远等待操作，0为立即返回请求结果，其他值为等待超时时间(单位为秒）
+            timex=5
+            # 打开串口，并得到串口对象
+            ser=serial.Serial(portx,bps,timeout=timex)
+
+            # # 写数据
+            # result=ser.write("我是东小东".encode("gbk"))
+            # print("写总字节数:",result)
+
+            # ser.close()#关闭串口
+
+        except Exception as e:
+            print("---串口初始化异常---：",e)    
     frame_counter = 0
     # Create a window for image display
     cv2.namedWindow("Result", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Result", 800, 600)
+    k_counter = 0
+    tim_total_1 = 0
+    tim_total_2 = 0
     while True:
         if stop_event.is_set():
             print("opencv_process stop")
             cv2.destroyAllWindows()
             break
         if not queue.empty():
-            events, spike_sum_board, pred_board = queue.get()
-            print("Opencv Process: Received PAIBoard output:")
+            events_timestamp, events, spike_sum_board, pred_board = queue.get()
+            tim_total_1 = time.perf_counter_ns()
+            csv_writer.writerow([tim_total_1, "PULSE", tim_total_1 - tim_total_2, events_timestamp])
+
             print(f"Opencv Process: Spike sum board:{spike_sum_board}\tPredicted board:{pred_board}\tPredicted letter:{LETTER_LIST[pred_board]}")
+
+            if os.name == 'posix': # Linux
+                # 串口
+                if LETTER_LIST[pred_board] == 'S':
+                    k_counter += 1
+                else:
+                    k_counter = 0  # 
+                try:
+                    if k_counter >= 8:
+                        ser.write(b'\x01')
+                        k_counter = 0 
+                    else:
+                        ser.write(b'\x00')
+                except Exception as e:
+                    print("---串口写入异常---：",e)
 
             if frame_counter >= frame_counter_max:
                 # tim1 = time.perf_counter()
@@ -86,6 +138,9 @@ def opencv_process(queue, stop_event, frame_counter_max):
                 # print(f"Opencv Process: Frame processing time: {tim2 - tim1} seconds") # 0.014 seconds
             else:
                 frame_counter += 1
+            tim_total_2 = time.perf_counter_ns()
+            csv_writer.writerow([tim_total_2, "TOTAL", tim_total_2 - tim_total_1, events_timestamp])
         else:
             time.sleep(0.005)
     cv2.destroyAllWindows()
+    exit(0)

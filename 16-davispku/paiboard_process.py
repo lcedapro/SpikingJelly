@@ -9,6 +9,7 @@ else:
     raise Exception("Unsupported OS")
 import time
 import numpy as np
+import csv
 
 from paiboard import PAIBoard_SIM
 from paiboard import PAIBoard_PCIe
@@ -63,6 +64,15 @@ def integrate_events_to_one_frame_1bit_optimized_numpy(events: np.ndarray):
 
 def paiboard_process(input_queue, output_queue, stop_event, baseDir):
     """后台处理函数，用于PAIBoard推理"""
+    try:
+        # 尝试打开 CSV 文件
+        csv_file =  open("paiboard_process.csv", "w", newline='')
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(["perf_counter_ns", "log_type", "log_info", "events_timestamp"])
+    except Exception as e:
+        print(f"Error in paiboard_process: {e}")
+        exit(1)  # 终止子程序，返回状态码 1 表示异常退出
+
     timestep = 4
     layer_num = 4
 
@@ -80,6 +90,9 @@ def paiboard_process(input_queue, output_queue, stop_event, baseDir):
     # snn.chip_init([(1, 0), (0, 0), (1, 1), (0, 1)])
     snn.config(oFrmNum=90 * 4)
 
+    tim_total_1 = 0
+    tim_total_2 = 0
+
     while True:
         if stop_event.is_set():
             print("paiboard_process stop")
@@ -87,9 +100,12 @@ def paiboard_process(input_queue, output_queue, stop_event, baseDir):
 
         # 检查输入队列是否为空
         if not input_queue.empty():
-            print("PAIBoard Process: Input queue is not empty, start processing")
+            # print("PAIBoard Process: Input queue is not empty, start processing")
             # 从输入队列获取数据
-            events = input_queue.get()
+            events_timestamp, events = input_queue.get()
+            tim_total_1 = time.perf_counter_ns()
+            csv_writer.writerow([tim_total_1, "PULSE", tim_total_1 - tim_total_2, events_timestamp])
+
             
             tim1 = time.perf_counter()
             # image = input_queue.get()
@@ -111,7 +127,8 @@ def paiboard_process(input_queue, output_queue, stop_event, baseDir):
             # tim1 = time.perf_counter()
 
             tim2 = time.perf_counter()
-            print(f"PAIBoard Process: PAIBoard preprocess time: {(tim2 - tim1)*1000} ms", )
+            # print(f"PAIBoard Process: PAIBoard preprocess time: {(tim2 - tim1)*1000} ms", )
+            # csv_writer.writerow([time.perf_counter_ns(), f"PAIBoard preprocess time: {(tim2 - tim1)*1000} ms"])
             tim1 = time.perf_counter()
 
             # PAIBoard 推理
@@ -122,13 +139,22 @@ def paiboard_process(input_queue, output_queue, stop_event, baseDir):
             pred_board = np.argmax(spike_sum_board)
 
             tim2 = time.perf_counter()
-            print(f"PAIBoard Process: PAIBoard inference time: {(tim2 - tim1)*1000} ms", )
+            # print(f"PAIBoard Process: PAIBoard inference time: {(tim2 - tim1)*1000} ms", )
+            # csv_writer.writerow([time.perf_counter_ns(), f"PAIBoard inference time: {(tim2 - tim1)*1000} ms"])
 
             # 将结果放入输出队列
-            output_queue.put((events, spike_sum_board, pred_board))
+            csv_writer.writerow([time.perf_counter_ns(), "LOG", "Processing finished, Start to put result into output queue blocking", events_timestamp])
+            output_queue.put((events_timestamp, events, spike_sum_board, pred_board))
+            csv_writer.writerow([time.perf_counter_ns(), "LOG", "Put result into output queue finished", events_timestamp])
+            tim_total_2 = time.perf_counter_ns()
+            csv_writer.writerow([tim_total_2, "TOTAL", tim_total_2 - tim_total_1, events_timestamp])
         else:
-            print("PAIBoard Process: Input queue is empty, waiting...")
+            # print("PAIBoard Process: Input queue is empty, waiting...")
+            csv_writer.writerow([time.perf_counter_ns(), "LOG", "Input queue is empty, waiting..."])
             time.sleep(0.001)
+    # close csv file
+    csv_file.close()
+    exit(0)
 
 # 示例用法
 if __name__ == "__main__":
