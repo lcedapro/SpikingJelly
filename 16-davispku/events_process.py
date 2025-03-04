@@ -1,4 +1,5 @@
 from multiprocessing import Process, Event, Queue
+import multiprocessing as mp
 import os
 if os.name == 'nt': # Windows
     import keyboard
@@ -13,8 +14,9 @@ import csv
 import dv_processing as dv
 # import cv2 as cv
 from datetime import timedelta
+from integrate_events_to_frame import integrate_events_to_one_frame_1bit_optimized_numpy
 
-def events_process(queue, stop_event, is_camera, frame_delay, file_path, time_sleep):
+def events_process(events_timestamp_value1:mp.Value, image_array1:mp.Array, con1:mp.Condition, stop_event:mp.Event, is_camera:bool, frame_delay:int, file_path:str, time_sleep:float):
     try:
         # 尝试打开 CSV 文件
         csv_file =  open("events_process.csv", "w", newline='')
@@ -33,31 +35,12 @@ def events_process(queue, stop_event, is_camera, frame_delay, file_path, time_sl
     # Initialize a multi-stream slicer
     slicer = dv.EventStreamSlicer()
 
-    # Initialize a visualizer for the overlay
-    visualizer = dv.visualization.EventVisualizer(reader.getEventResolution(), 
-                                                  dv.visualization.colors.white(),
-                                                  dv.visualization.colors.green(), 
-                                                  dv.visualization.colors.red())
-
-    # Create a window for image display
-    # cv.namedWindow("Preview", cv.WINDOW_NORMAL)
-    # cv.resizeWindow("Preview", 800, 600)
-
-    # Flag to indicate if the queue is full
-    queue_full_flag = False
-
     # Callback method for time based slicing
     tim_total_1 = 0
     tim_total_2 = 0
     def display_preview(events):
         nonlocal tim_total_1, tim_total_2
-        # Generate a preview and show the final image (if frame_time_counter == 0)
-        # cv.imshow("Preview", visualizer.generateImage(events))
-
-
-        # If escape button is pressed (code 27 is escape key), exit the program cleanly
-        # if cv.waitKey(1) == 27:
-        #     exit(0)
+        nonlocal events_timestamp_value1, image_array1, con1
 
         # Convert events to numpy array
         events_numpy = events.numpy()
@@ -67,27 +50,21 @@ def events_process(queue, stop_event, is_camera, frame_delay, file_path, time_sl
             # print("No events received. Skipping processing.")
             csv_writer.writerow([time.perf_counter_ns(), "LOG", "No events received. Skipping processing.", "None"])
             return
-        events_timestamp = events_numpy[0][0]
+        events_timestamp = events_numpy[0][0] & 0xffffffff # Convert to 32-bit unsigned integer
+
         tim_total_1 = time.perf_counter_ns()
         csv_writer.writerow([tim_total_1, "PULSE", tim_total_1 - tim_total_2, events_timestamp])
-        # Extract (x, y, polarity) from events
-        # events_numpy_x_y_polarity = np.array([(event[1], event[2], event[3]) for event in events_numpy]) # memory_ratio = 0.375
-        events_numpy_x_y_polarity = events_numpy[['x', 'y', 'polarity']]
 
-        # Extract the first timestamp
-        # events_numpy_first_timestamp = events_numpy[0][0]
+        image = integrate_events_to_one_frame_1bit_optimized_numpy(events_numpy)
+        image = image[0] # image.shape = (86,65)
 
-        # Check if the queue is full
-        if queue.full():
-            queue_full_flag = True
-            # print("Queue is full. Stopping event processing.")
-            csv_writer.writerow([time.perf_counter_ns(), "Queue is full. Failed to put processed event data into queue.", events_timestamp])
-        else:
-            # queue.put((events_numpy_x_y_polarity, events_numpy_first_timestamp))
-            queue.put((events_timestamp, events_numpy_x_y_polarity))
-            csv_writer.writerow([time.perf_counter_ns(), "Queue is not full. Put processed event data into queue.", events_timestamp])
-            queue_full_flag = False
-            # print("Queue is not full. Event data added to queue.")
+        # WRITE TO SHARED MEMORY
+        with con1:
+            events_timestamp_value1.value = events_timestamp
+            # image_array[:] = image.flatten()
+            np.copyto(np.frombuffer(image_array1.get_obj(), dtype=np.uint8), image.flatten())
+            con1.notify_all()
+
         tim_total_2 = time.perf_counter_ns()
         csv_writer.writerow([tim_total_2, "TOTAL", tim_total_2 - tim_total_1, events_timestamp])
 
@@ -134,23 +111,33 @@ if __name__ == "__main__":
     FILE_PATH = "D:/DV/test/dvSave-2024_09_03_16_05_45.aedat4"
     TIME_SLEEP = 0
 
-    queue = Queue(maxsize=10)  # Set the maximum size of the queue
+    events_timestamp_value1 = mp.Value('L', lock=True)
+    image_array1 = mp.Array('B', 86*65, lock=True)
+    con1 = mp.Condition()
 
     # Start the process
-    p = Process(target=events_process, args=(queue, stop_event, IS_CAMERA, FRAME_DELAY, FILE_PATH, TIME_SLEEP))
+    p = Process(target=events_process, args=(events_timestamp_value1, image_array1, con1, stop_event, IS_CAMERA, FRAME_DELAY, FILE_PATH, TIME_SLEEP))
     p.start()
+
+    events_timestamp_main = 0
 
     # Example of consuming data from the queue in the main process
     while p.is_alive():
-        
         try:
-            if not queue.empty():
-                data = queue.get(timeout=1)
-                events_numpy_x_y_polarity = data
-                print("Received events_numpy_x_y_polarity len:", len(events_numpy_x_y_polarity))
+            with con1:
+                if events_timestamp_value1.value == events_timestamp_main:
+                    con1.wait(timeout=2)
+                events_timestamp_main = events_timestamp_value1.value
+                image_main = np.frombuffer(image_array1.get_obj(), dtype=np.uint8).reshape((65, 86))
+
+                # write image_main to file
+                np.save("image_main.npy", image_main)
+                print("Received events timestamp:", events_timestamp_main)
+                print("Received image shape:", image_main)
             # else:
                 # print("Queue is empty.")
-        except:
+        except Exception as e:
+            print("Error in main process: ", e)
             pass
 
         time.sleep(0.01)

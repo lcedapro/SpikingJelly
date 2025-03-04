@@ -98,17 +98,17 @@ class PAIBoxNet:
         """
         # print(image.shape)
         # 数据预处理：将image的形状从[2, 346, 260]用maxpool2d池化为[2, 86, 65]
-        maxpool2d = torch.nn.MaxPool2d(kernel_size=4, stride=4)
-        if type(image) == np.ndarray:
-            image = image.astype(np.int8)
-            image = torch.from_numpy(image) # numpy -> tensor
-        elif type(image) == torch.Tensor:
-            pass
-        else:
-            raise TypeError("image must be np.ndarray or torch.Tensor")
-        image = maxpool2d(image)
-        image = image.numpy().astype(np.uint8) # tensor -> numpy
-        image = np.where(image != 0, 1, 0)
+        # maxpool2d = torch.nn.MaxPool2d(kernel_size=4, stride=4)
+        # if type(image) == np.ndarray:
+        #     image = image.astype(np.int8)
+        #     image = torch.from_numpy(image) # numpy -> tensor
+        # elif type(image) == torch.Tensor:
+        #     pass
+        # else:
+        #     raise TypeError("image must be np.ndarray or torch.Tensor")
+        # image = maxpool2d(image)
+        # image = image.numpy().astype(np.uint8) # tensor -> numpy
+        # image = np.where(image != 0, 1, 0)
 
         # 图像加载
         self.pb_net.image_69 = image
@@ -118,7 +118,7 @@ class PAIBoxNet:
         self.sim.run(self.param_dict["timestep"] + self.param_dict["delay"], reset=False)
 
         # Decode the output
-        spike_out = self.sim.data[self.pb_net.probe1].astype(np.int32)
+        spike_out = self.sim.data[self.pb_net.probe1].astype(np.uint8)
         spike_out = spike_out[self.param_dict["delay"] :]
         spike_out = voting(spike_out, 10) # 投票层
         spike_sum_pb = spike_out.sum(axis=0)

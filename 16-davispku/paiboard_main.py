@@ -1,5 +1,6 @@
 import __init__
 from multiprocessing import Process, Queue, Event
+import multiprocessing as mp
 import os
 if os.name == 'nt': # Windows
     import keyboard
@@ -9,6 +10,7 @@ else:
     raise Exception("Unsupported OS")
 import time
 import numpy as np
+import csv
 
 # 假设 events_process 和 PAIBoardProcessor 已经定义在其他模块中
 # 如果它们在同一个文件中，可以直接使用
@@ -42,46 +44,86 @@ if __name__ == "__main__":
     else:
         raise Exception("Unsupported OS")
 
-    # 定义队列
-    input_queue = Queue(maxsize=2)  # events_process 的输出队列
-    output_queue = Queue(maxsize=50)  # PAIBoardProcessor 的输出队列
+    # 新建主进程log输出
+    try:
+        # 尝试打开 CSV 文件
+        csv_file =  open("main_process.csv", "w", newline='')
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(["perf_counter_ns", "log_type", "log_info", "events_timestamp"])
+    except Exception as e:
+        print(f"Error in main_process: {e}")
+        exit(1)  # 终止子程序，返回状态码 1 表示异常退出
+
+    # 创建共享内存
+    events_timestamp_value1 = mp.Value('L', lock=True)
+    image_array1 = mp.Array('B', 86*65, lock=True)
+    con1 = mp.Condition()
+
+    events_timestamp_value2 = mp.Value('L', lock=True)
+    result_array2 = mp.Array('B', 9, lock=True)
+    con2 = mp.Condition()
+
+    events_timestamp_value3 = mp.Value('L', lock=True)
+    cv_image_array3 = mp.Array('B', 86*65, lock=True)
+    cv_result_array3 = mp.Array('B', 9, lock=True)
+    con3 = mp.Condition()
 
     # 定义全局变量
     IS_CAMERA = False
     FRAME_DELAY = 1
     FILE_PATH = "D:\\DV\\SPKU\\7_1.aedat4"
     TIME_SLEEP = 0.1
-    baseDir = "./debug"
 
     # 创建事件处理进程
-    events_process_p = Process(target=events_process, args=(input_queue, stop_event1, IS_CAMERA, FRAME_DELAY, FILE_PATH, TIME_SLEEP))
+    events_process_p = Process(target=events_process, args=(events_timestamp_value1, image_array1, con1, stop_event1, IS_CAMERA, FRAME_DELAY, FILE_PATH, TIME_SLEEP))
     events_process_p.start()
 
     # 创建 OpenCV 处理进程
-    opencv_process_p = Process(target=opencv_process, args=(output_queue, stop_event3, 2))
+    opencv_process_p = Process(target=opencv_process, args=(events_timestamp_value3, cv_image_array3, cv_result_array3, con3, stop_event3))
     opencv_process_p.start()
 
     # 创建 PAIBoard 处理进程
-    # paiboard_process_p = Process(target=paiboard_process, args=(input_queue, output_queue, stop_event2, baseDir))
-    paiboard_process_p = Process(target=paiboxnet_process, args=(input_queue, output_queue, stop_event2))
+    # paiboard_process_p = Process(target=paiboard_process, args=(events_timestamp_value1, image_array1, con1,
+    #                                                              events_timestamp_value2, result_array2, con2,
+    #                                                              events_timestamp_value3, cv_image_array3, cv_result_array3, con3,
+    #                                                              stop_event2, 2))
+    paiboard_process_p = Process(target=paiboxnet_process, args=(events_timestamp_value1, image_array1, con1,
+                                                                 events_timestamp_value2, result_array2, con2,
+                                                                 events_timestamp_value3, cv_image_array3, cv_result_array3, con3,
+                                                                 stop_event2, 2))
     paiboard_process_p.start()
+
+
+    # 主进程开始数据接收处理
+    events_timestamp_main = 0
+
+    tim_total_1 = 0
+    tim_total_2 = 0
 
     while events_process_p.is_alive() or opencv_process_p.is_alive() or paiboard_process_p.is_alive():
         # print("events_process_p is_alive: ",events_process_p.is_alive())
         # print("paiboard_process_p is_alive: ",paiboard_process_p.is_alive())
-        # 检查 PAIBoardProcessor 的输出队列
-        if not output_queue.empty():
-        #     spike_sum_board, pred_board = output_queue.get()
-        #     print("Main Process: Received PAIBoard output:")
-        #     print(f"Main Process: Spike sum board:{spike_sum_board}\tPredicted board:{pred_board}\tPredicted letter:{LETTER_LIST[pred_board]}")
-        # # if input_queue.full():
-            # test_data = input_queue.get()
-            # print("Received test data:", test_data)
+        # 从前置模块获取数据
+        with con2:
+            if events_timestamp_value2.value == events_timestamp_main:
+                con2.wait(timeout=0.5)
+            if events_timestamp_value2.value == events_timestamp_main:
+                print("main_process timeout")
+                continue
+            print("main_process get data")
+            events_timestamp_main = events_timestamp_value2.value
+            spike_sum_board = np.frombuffer(result_array2.get_obj(), dtype=np.uint8)
+    
+        # Start main process
+        tim_total_1 = time.perf_counter_ns()
+        csv_writer.writerow([tim_total_1, "PULSE", tim_total_1 - tim_total_2, events_timestamp_main])
 
-            time.sleep(0.001)
-        else:
-            # print("Main Process: Output Queue is empty, waiting...")
-            time.sleep(0.1)
+        pred_board = np.argmax(spike_sum_board)
+        print(f"Main Process: Spike sum board:{spike_sum_board}\tPredicted board:{pred_board}\tPredicted letter:{LETTER_LIST[pred_board]}")
+
+        tim_total_2 = time.perf_counter_ns()
+        csv_writer.writerow([tim_total_2, "TOTAL", tim_total_2 - tim_total_1, events_timestamp_main])
+
         if stop_event1.is_set() or stop_event2.is_set() or stop_event3.is_set():
             time.sleep(0.5)
             break
