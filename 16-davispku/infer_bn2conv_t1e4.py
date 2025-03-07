@@ -1,5 +1,5 @@
-# py .\infer_bn2conv_t1e4.py -data_dir ./ -out_dir ./logs -channels 2 -resume './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_bn2conv.pth'
-# epoch=0, test_loss=0.015356716852693353, test_acc=0.923828125, max_test_acc=0, total_time=12.735677719116211
+# py .\infer_bn2conv_t1e4.py -data_dir './temporary_datasets/duration_2000_0306' -out_dir ./logs -channels 2 -resume './logs_t1e4_simple/T_16_b_64_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_temporary_datasets/checkpoint_max_bn2conv.pth'
+# epoch=0, test_loss=0.01611419354746048, test_acc=0.948339483394834, max_test_acc=0, total_time=19.066414833068848
 
 import torch
 import torch.nn as nn
@@ -14,7 +14,7 @@ import os
 import argparse
 
 import numpy as np
-from CustomImageDataset0 import CustomImageDataset0
+from CustomStaticDataset import CustomStaticDataset
 
 _seed_ = 2020
 torch.manual_seed(_seed_)  # use torch.manual_seed() to seed the RNG for all devices (both CPU and CUDA)
@@ -34,7 +34,7 @@ class VotingLayer(nn.Module):
 class PythonNet(nn.Module):
     def __init__(self, channels: int):
         super().__init__()
-        self.pool = nn.Sequential(nn.MaxPool2d(4, 4))
+        # self.pool = nn.Sequential(nn.MaxPool2d(4, 4))
         # conv = []
         # conv.extend(PythonNet.convpool5x5(2, channels*2))
         # conv.extend(PythonNet.conv5x5(channels*2, channels*2))
@@ -56,16 +56,16 @@ class PythonNet(nn.Module):
             nn.Linear(8 * 8 * 8, 8 * 4 * 4, bias=False),
             neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True),
             layer.Dropout(0.5),
-            nn.Linear(8 * 4 * 4, 90, bias=False),
+            nn.Linear(8 * 4 * 4, 50, bias=False),
             neuron.IFNode(surrogate_function=surrogate.ATan(), detach_reset=True)
         )
         self.vote = VotingLayer(10)
 
     def forward(self, x: torch.Tensor):
         x = x.permute(1, 0, 2, 3, 4)  # [N, T, 2, H, W] -> [T, N, 2, H, W]
-        out_spikes = self.vote(self.fc(self.conv(self.pool(x[0]))))
+        out_spikes = self.vote(self.fc(self.conv(x[0])))
         for t in range(1, x.shape[0]):
-            out_spikes += self.vote(self.fc(self.conv(self.pool(x[t]))))
+            out_spikes += self.vote(self.fc(self.conv(x[t])))
         return out_spikes / x.shape[0]
 
     @staticmethod
@@ -90,7 +90,7 @@ try:
     class CextNet(nn.Module):
         def __init__(self, channels: int):
             super().__init__()
-            self.pool = nn.Sequential(layer.SeqToANNContainer(nn.MaxPool2d(4, 4)))
+            # self.pool = nn.Sequential(layer.SeqToANNContainer(nn.MaxPool2d(4, 4)))
             # conv = []
             # conv.extend(CextNet.convpool5x5(2, channels*2))
             # conv.extend(CextNet.conv5x5(channels*2, channels*2))
@@ -112,14 +112,14 @@ try:
                 layer.SeqToANNContainer(nn.Linear(8 * 8 * 8, 8 * 4 * 4, bias=False)),
                 neuron.MultiStepIFNode(surrogate_function=surrogate.ATan(), detach_reset=True, backend='cupy'),
                 layer.MultiStepDropout(0.5),
-                layer.SeqToANNContainer(nn.Linear(8 * 4 * 4, 90, bias=False)),
+                layer.SeqToANNContainer(nn.Linear(8 * 4 * 4, 50, bias=False)),
                 neuron.MultiStepIFNode(surrogate_function=surrogate.ATan(), detach_reset=True, backend='cupy')
             )
             self.vote = VotingLayer(10)
 
         def forward(self, x: torch.Tensor):
             x = x.permute(1, 0, 2, 3, 4)  # [N, T, 2, H, W] -> [T, N, 2, H, W]
-            out_spikes = self.fc(self.conv(self.pool(x)))  # shape = [T, N, 90]
+            out_spikes = self.fc(self.conv(x))  # shape = [T, N, 50]
             return self.vote(out_spikes.mean(0))
 
         @staticmethod
@@ -288,12 +288,12 @@ def main():
     #     pin_memory=True)
 
     # 设置训练集和测试集的目录
-    train_dir = './duration_1000/train'
-    test_dir = './duration_1000/test'
+    train_dir = args.data_dir
+    test_dir = args.data_dir
 
     # 创建训练集和测试集的数据集实例
-    train_dataset = CustomImageDataset0(root_dir=train_dir, target_t=1, expand_factor=4, random_en=True, num_crops_per_video=8)
-    test_dataset = CustomImageDataset0(root_dir=test_dir, target_t=1, expand_factor=4, random_en=True, num_crops_per_video=8)
+    train_dataset = CustomStaticDataset(root_dir=train_dir, expand_factor=4)
+    test_dataset = CustomStaticDataset(root_dir=test_dir, expand_factor=4)
 
     # 创建训练集和测试集的DataLoader
     train_data_loader = DataLoader(train_dataset, batch_size=args.b, shuffle=True, num_workers=args.j, drop_last=True, pin_memory=True)
@@ -322,7 +322,7 @@ def main():
         test_samples = 0
         with torch.no_grad():
             for frame, label in test_data_loader:
-                label_onehot = F.one_hot(label, 9).float()
+                label_onehot = F.one_hot(label, 5).float()
                 out_fr = net(frame)
                 loss = F.mse_loss(out_fr, label_onehot)
 

@@ -1,0 +1,1 @@
+python davispku_duration_2000_static.py -device cuda:0 -amp -cupy -data_dir './temporary_datasets/duration_2000_0306' -out_dir ./logs_temp -channels 2 -opt SGD -lr_scheduler CosALR -b 64 -T_max 48 -epochs 48 -lr 0.4\

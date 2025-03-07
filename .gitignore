@@ -46,6 +46,11 @@
 16-davispku/linux/**
 16-davispku/linux/.*
 
+# exclude exchange code folder '16-davispku/linux'
+16-davispku/temporary_datasets
+16-davispku/temporary_datasets/**
+16-davispku/temporary_datasets/.*
+
 # exclude binary file folder named 'debug', 'bin'
 */debug
 */bin

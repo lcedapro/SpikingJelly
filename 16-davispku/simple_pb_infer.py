@@ -5,7 +5,7 @@ import numpy as np
 import paibox as pb
 pb.BACKEND_CONFIG.test_chip_addr = (2, 0)
 pb.BACKEND_CONFIG.target_chip_addr = [(1, 0), (0, 0), (1, 1), (0, 1)]
-from CustomImageDataset0 import CustomImageDataset0
+from CustomStaticDataset import CustomStaticDataset
 from torch.utils.data import DataLoader
 
 from voting import voting
@@ -15,8 +15,8 @@ COMPILE_EN = True
 
 # Dataloader
 # 设置训练集和测试集的目录
-test_dir = './duration_1000/test'
-test_dataset = CustomImageDataset0(root_dir=test_dir, target_t=4, expand_factor=1, random_en=True, num_crops_per_video=1)
+test_dir = './temporary_datasets/duration_2000_0306'
+test_dataset = CustomStaticDataset(root_dir=test_dir, expand_factor=1)
 test_data_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=1, drop_last=False, pin_memory=True)
 print(len(test_data_loader))
 
@@ -40,7 +40,7 @@ class Conv2d_Net(pb.Network):
         self.n11 = pb.LIF(128, threshold=param_dict['fc.5.vthr'], reset_v=0, tick_wait_start=4) # fc
         self.fc_1 = pb.FullConn(self.n10, self.n11, conn_type=pb.SynConnType.All2All, weights=param_dict['fc.5.weight'])
 
-        self.n12 = pb.LIF(90, threshold=param_dict['fc.8.vthr'], reset_v=0, tick_wait_start=5) # fc
+        self.n12 = pb.LIF(50, threshold=param_dict['fc.8.vthr'], reset_v=0, tick_wait_start=5) # fc
         self.fc_2 = pb.FullConn(self.n11, self.n12, conn_type=pb.SynConnType.All2All, weights=param_dict['fc.8.weight'])
 
         self.probe1 = pb.Probe(self.n12, "spike")
@@ -131,8 +131,8 @@ class PAIBoxNet:
 # 测试程序
 def test():
     paiboxnet = PAIBoxNet(2, SIM_TIMESTEP,
-         './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth',
-         './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/vthr_list.npy')
+         './logs_t1e4_simple/T_16_b_64_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_temporary_datasets/checkpoint_max_conv2int.pth',
+         './logs_t1e4_simple/T_16_b_64_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_temporary_datasets/vthr_list.npy')
     for i, (image_tensor, label_tensor) in enumerate(test_data_loader):
         # 仿真时间 [N, T, C, H, W] -> [N, T=SIM_TIMESTEP, C, H, W]
         image_tensor = image_tensor[:, :SIM_TIMESTEP, :, :, :]
@@ -156,8 +156,8 @@ if __name__ == "__main__":
     if COMPILE_EN:
 
         paiboxnet = PAIBoxNet(2, SIM_TIMESTEP,
-            './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/checkpoint_max_conv2int.pth',
-            './logs_t1e4_simple/T_4_b_16_c_2_SGD_lr_0.4_CosALR_48_amp_cupy/vthr_list.npy')
+            './logs_t1e4_simple/T_16_b_64_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_temporary_datasets/checkpoint_max_conv2int.pth',
+            './logs_t1e4_simple/T_16_b_64_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_temporary_datasets/vthr_list.npy')
         mapper = pb.Mapper()
 
         mapper.build(paiboxnet.pb_net)
