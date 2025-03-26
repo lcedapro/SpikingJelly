@@ -24,13 +24,21 @@ def manual_multply_model(model, layer_name_list: list, mult_list: list):
             print("Layer " + layer_name + " does not exist or has no bias.")
     return model
 
-def maxium_multply_model(model, layer_name_list: list, sj_vthr: float = 1.0):
+def maxium_multply_model(model, sj_vthr: float = 1.0):
     """
     每层参数分别缩放并取整数，缩放系数由int(127.0/该层参数最大值)，该缩放系数作为新网络各层LIF的Vthr参数
     在缩放之前，需要将原网络参数除以sj_vthr，以使缩放时的sj_vthr归一化到1.0
     """
     vthr_list = []
-    for layer_name in layer_name_list:
+    # 自动提取所有层的名称
+    layer_names = set()
+    for key in model.keys():
+        if 'weight' in key or 'bias' in key:
+            # 提取层名称，例如从 "conv.0.weight" 提取 "conv.0"
+            layer_name = key.rsplit('.', 1)[0]
+            layer_names.add(layer_name)
+
+    for layer_name in sorted(layer_names):  # 排序以保持一致性
         max_weight = 0
         max_bias = 0
         if layer_name + '.weight' in model:
@@ -57,12 +65,12 @@ def maxium_multply_model(model, layer_name_list: list, sj_vthr: float = 1.0):
 def main():
     # 加载原始权重文件
     checkpoint_path = './logs_t1e4_simple/T_16_b_64_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_temporary_datasets/checkpoint_max_bn2conv.pth'
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
     
     # 将所有参数乘以MULT后取整
     multiplied_checkpoint = checkpoint.copy()
-    layer_name_list = ['conv.0', 'conv.2', 'fc.2', 'fc.5', 'fc.8']
-    multiplied_checkpoint['net'], vthr_list = maxium_multply_model(checkpoint['net'], layer_name_list, sj_vthr=1.0)
+    # layer_name_list = ['conv.0', 'conv.2', 'fc.2', 'fc.5', 'fc.8']
+    multiplied_checkpoint['net'], vthr_list = maxium_multply_model(checkpoint['net'], sj_vthr=1.0)
 
     # 保存新的权重文件
     multiplied_checkpoint_path = './logs_t1e4_simple/T_16_b_64_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_temporary_datasets/checkpoint_max_conv2int.pth'

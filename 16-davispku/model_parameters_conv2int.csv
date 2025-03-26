@@ -1,0 +1,8 @@
+Layer,Size,Dtype,Requires Grad
+conv.0.weight,"torch.Size([1, 1, 7, 7])",torch.int8,False
+conv.0.bias,torch.Size([1]),torch.int8,False
+conv.2.weight,"torch.Size([2, 1, 7, 7])",torch.int8,False
+conv.2.bias,torch.Size([2]),torch.int8,False
+fc.2.weight,"torch.Size([512, 672])",torch.int8,False
+fc.5.weight,"torch.Size([128, 512])",torch.int8,False
+fc.8.weight,"torch.Size([90, 128])",torch.int8,False
