@@ -1,0 +1,26 @@
+{
+  "name": "graph_of_Conv2d_Net_0",
+  "n_core_required": 200,
+  "n_core_occupied": 299,
+  "layer_num": 5,
+  "misc": {
+    "target_chip_list": [
+      {
+        "x": 1,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 1,
+        "y": 1
+      },
+      {
+        "x": 0,
+        "y": 1
+      }
+    ]
+  }
+}

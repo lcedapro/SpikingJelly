@@ -4,20 +4,11 @@ import torch
 import numpy as np
 import paibox as pb
 import os
-from CustomStaticDataset import CustomStaticDataset
-from torch.utils.data import DataLoader
+pb.BACKEND_CONFIG.test_chip_addr = (2, 0)
+pb.BACKEND_CONFIG.target_chip_addr = [(1, 0), (0, 0), (1, 1), (0, 1)]
 state_dict_path = './logs_t1e4_simple/T_16_b_64_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_temporary_datasets'
 
-from voting import voting
-
 SIM_TIMESTEP = 4 # <=16
-
-# Dataloader
-# 设置训练集和测试集的目录
-test_dir = './temporary_datasets/duration_2000_0306'
-test_dataset = CustomStaticDataset(root_dir=test_dir, expand_factor=4)
-test_data_loader = DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=1, drop_last=False, pin_memory=True)
-print(len(test_data_loader))
 
 # PAIBox网络定义
 class Conv2d_Net(pb.Network):
@@ -88,76 +79,26 @@ class PAIBoxNet:
 
         return param_dict
 
-    # PAIBox推理子程序
-    def pb_inference(self, image):
-        """
-        PAIBox推理
-        输入: np.ndarray or torch.Tensor , shape=[2, 346, 260]
-        输出: spike_sum_pb, pred_pb
-        """
-        # print(image.shape)
-        # 数据预处理：将image的形状从[2, 346, 260]用maxpool2d池化为[2, 86, 65]
-        # maxpool2d = torch.nn.MaxPool2d(kernel_size=4, stride=4)
-        # if type(image) == np.ndarray:
-        #     image = image.astype(np.int8)
-        #     image = torch.from_numpy(image) # numpy -> tensor
-        # elif type(image) == torch.Tensor:
-        #     pass
-        # else:
-        #     raise TypeError("image must be np.ndarray or torch.Tensor")
-        # image = maxpool2d(image)
-        # image = image.numpy().astype(np.uint8) # tensor -> numpy
-        # image = np.where(image != 0, 1, 0)
-
-        # 图像加载
-        self.pb_net.image_69 = image
-        # PAIBox推理
-
-        # Simulation, duration=timestep + delay
-        self.sim.run(self.param_dict["timestep"] + self.param_dict["delay"], reset=False)
-
-        # Decode the output
-        spike_out = self.sim.data[self.pb_net.probe1].astype(np.uint8)
-        spike_out = spike_out[self.param_dict["delay"] :]
-        spike_out = voting(spike_out, 10) # 投票层
-        spike_sum_pb = spike_out.sum(axis=0)
-        pred_pb = np.argmax(spike_sum_pb)
-        # print("Predicted number:", pred_pb)
-
-        self.sim.reset()
-        return spike_sum_pb, pred_pb
-
-# 测试程序
-def test(test_num: int = 100):
-    paiboxnet = PAIBoxNet(2, SIM_TIMESTEP,
-        os.path.join(state_dict_path, 'checkpoint_max_conv2int.pth'),
-        os.path.join(state_dict_path, 'vthr_list.npy'))
-    for i, (image_tensor, label_tensor) in enumerate(test_data_loader):
-        if i == test_num:
-            break
-        print(f"Test sample {i}")
-        # 仿真时间 [N, T, C, H, W] -> [N, T=SIM_TIMESTEP, C, H, W]
-        image_tensor = image_tensor[:, :SIM_TIMESTEP, :, :, :]
-
-        # 数据集预处理
-        # 获取图片和标签
-        image, label = image_tensor[0], label_tensor[0]
-        # 图片转为 numpy 数组，标签转为 int
-        image = image.squeeze(0)  # 去掉批次维度
-        image = image.numpy()  # 转换为 numpy 数组
-        image = image.astype(np.uint8)  # 转换为 uint8
-        label = label.item()
-
-        # PAIBox推理
-        spike_sum_pb, pred_pb = paiboxnet.pb_inference(image)
-        print("spike_sum_pb:", spike_sum_pb)
-        if pred_pb != label:
-            print(f"predicted = {pred_pb}, label= {label}, failed")
-        else:
-            print(f"predicted = {pred_pb}, label= {label}, succcess")
-
-        break
-
 if __name__ == "__main__":
-    test()
+    paiboxnet = PAIBoxNet(2, SIM_TIMESTEP,
+        './logs_t1e4_simple/T_16_b_64_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_temporary_datasets/checkpoint_max_conv2int.pth',
+        './logs_t1e4_simple/T_16_b_64_c_2_SGD_lr_0.4_CosALR_48_amp_cupy_temporary_datasets/vthr_list.npy')
+    mapper = pb.Mapper()
+
+    mapper.build(paiboxnet.pb_net)
+
+    graph_info = mapper.compile(
+        weight_bit_optimization=True, grouping_optim_target="both"
+    )
+
+    # #N of cores required
+    print("Core required:", graph_info["n_core_required"])
+    print("Core occupied:", graph_info["n_core_occupied"])
+
+    mapper.export(
+        write_to_file=True, fp="./debug2", format="npy", export_core_params=True
+    )
+
+    # Clear all the results
+    mapper.clear()
 

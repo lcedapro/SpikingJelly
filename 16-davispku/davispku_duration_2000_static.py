@@ -11,7 +11,7 @@ import os
 import argparse
 
 import numpy as np
-from CustomStaticDataset import CustomStaticDataset
+from CustomStaticDataset import CustomStaticDataset, test_transform
 
 _seed_ = 2020
 torch.manual_seed(_seed_)  # use torch.manual_seed() to seed the RNG for all devices (both CPU and CUDA)
@@ -309,8 +309,8 @@ def main():
     test_dir = args.data_dir
 
     # 创建训练集和测试集的数据集实例
-    train_dataset = CustomStaticDataset(root_dir=train_dir, expand_factor=4)
-    test_dataset = CustomStaticDataset(root_dir=test_dir, expand_factor=4)
+    train_dataset = CustomStaticDataset(root_dir=train_dir, expand_factor=4, transform=test_transform)
+    test_dataset = CustomStaticDataset(root_dir=test_dir, expand_factor=4, transform=test_transform)
 
     # 创建训练集和测试集的DataLoader
     train_data_loader = DataLoader(train_dataset, batch_size=args.b, shuffle=True, num_workers=args.j, drop_last=True, pin_memory=True)

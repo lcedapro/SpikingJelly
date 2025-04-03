@@ -3,6 +3,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
+import random
+from torchvision.transforms import functional as F
 
 class CustomStaticDataset(Dataset):
     def __init__(self, root_dir, transform=None, expand_factor=4):
@@ -49,6 +51,38 @@ class CustomStaticDataset(Dataset):
         expanded_img_data = np.expand_dims(img_data, axis=0).repeat(self.expand_factor, axis=0)
 
         return torch.tensor(expanded_img_data, dtype=torch.float32), label
+
+def test_transform(img_data : np.ndarray):
+    # 在这里添加你的 transform 操作，例如归一化、裁剪等
+
+    # 1. Rotation（旋转）: 随机旋转角度（-20到20度）
+    angle = random.uniform(-10, 10)
+    # angle = 0
+
+    # 2. Translation（平移）: 10像素的随机水平（x）和垂直（y）平移
+    tx = random.randint(-8, 8)
+    ty = random.randint(-8, 8)
+    # tx = 0
+    # ty = 0
+    translate = [tx, ty]
+
+    # 3. Scaling（缩放）: 随机缩放因子（0.8到1.2）
+    scale = random.uniform(0.9, 1.2)
+    # scale = 1
+
+    # 4. Shear（错切）: 20度的随机水平（x）和垂直（y）错切
+    sx = random.uniform(-2, 2)
+    sy = random.uniform(-2, 2)
+    # sx = 0
+    # sy = 0
+    shear = [sx, sy]
+
+    img_data_tensor = torch.tensor(img_data, dtype=torch.float32)
+
+    # Apply the transformations
+    img_data_tensor = F.affine(img_data_tensor, angle, translate, scale, shear, interpolation=F.InterpolationMode.NEAREST, fill=[0])
+
+    return img_data_tensor.numpy()
 
 if __name__ == '__main__':
 
